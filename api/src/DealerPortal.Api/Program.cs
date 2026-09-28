@@ -15,8 +15,12 @@ builder.Services.AddProblemDetails();
 builder.Services.AddValidation();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddScoped<CurrentUser>();
+// History table schema-qualified: unqualified it follows search_path ("$user", public), and a DB login
+// named like the model schema ("portal" on Azure) made EF look at an empty portal.__EFMigrationsHistory.
 builder.Services.AddDbContext<PortalDbContext>(o =>
-    o.UseNpgsql(builder.Configuration.GetConnectionString("Portal")).UseSnakeCaseNamingConvention());
+    o.UseNpgsql(builder.Configuration.GetConnectionString("Portal"),
+            n => n.MigrationsHistoryTable("__EFMigrationsHistory", "public"))
+        .UseSnakeCaseNamingConvention());
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
