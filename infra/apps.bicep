@@ -26,7 +26,9 @@ resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: 'plan-dealer-portal'
   location: location
   kind: 'linux'
-  sku: { name: 'B1', tier: 'Basic' }
+  // Free-trial subscriptions get zero quota for every App Service tier except Premium v4 here, so the
+  // smallest Pv4 size runs all three apps: about 0.10 USD per hour while the demo is up.
+  sku: { name: 'P0v4', tier: 'PremiumV4' }
   properties: { reserved: true }
 }
 
