@@ -62,6 +62,13 @@ API_OBJ_ID=$(object_id "$API_APP_ID")
 API_SP_ID=$(ensure_sp "$API_APP_ID")
 SCOPE_ID=$(az ad app show --id "$API_APP_ID" --query "api.oauth2PermissionScopes[?value=='access_as_user'].id | [0]" -o tsv)
 
+# Let Azure CLI mint tokens for the api scope, so MCP clients (Claude Desktop, Claude Code) get a dev token
+# with `az account get-access-token --resource api://<api-app-id>`. See docs/mcp-clients.md.
+log "pre-authorizing Azure CLI on access_as_user"
+az rest --method PATCH --url "$GRAPH/applications/$API_OBJ_ID" --body "{
+  \"api\": {\"preAuthorizedApplications\": [{\"appId\": \"04b07795-8ddb-461a-bbee-02f9e1bf7b46\", \"delegatedPermissionIds\": [\"$SCOPE_ID\"]}]}
+}"
+
 # ---------------------------------------------------------------- web app
 WEB_APP_ID=$(app_by_name dealer-portal-web)
 if [ -z "$WEB_APP_ID" ]; then
