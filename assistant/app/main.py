@@ -1,8 +1,10 @@
+import os
 from contextlib import asynccontextmanager
 
 import psycopg
 from fastapi import FastAPI
 
+from app.chat import router as chat_router
 from rag import settings
 
 
@@ -18,14 +20,27 @@ def check_embedding_provider(conn: psycopg.Connection) -> None:
         )
 
 
+def check_model_credentials() -> None:
+    """Spend guard, part one: refuse to start without a way to reach a model."""
+    if not any(
+        os.environ.get(k)
+        for k in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL")
+    ):
+        raise RuntimeError(
+            "Set ANTHROPIC_API_KEY (or ANTHROPIC_BASE_URL for the local-llm profile)."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    check_model_credentials()
     with psycopg.connect(settings.database_url()) as conn:
         check_embedding_provider(conn)
     yield
 
 
 app = FastAPI(title="Dealer Portal Assistant", lifespan=lifespan)
+app.include_router(chat_router)
 
 
 @app.get("/health")
