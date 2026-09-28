@@ -101,6 +101,39 @@ retrieval: 30 cases, recall@5 1.00, MRR 0.95
 
 What each trigger costs: the retrieval suite is free (CPU embedder). The LLM-graded suites spend API tokens; the judge cache under `assistant/evals/cache/` makes reruns of unchanged answers free.
 
+## The agent
+
+The same portal tools are defined once in the API and served twice: to the in-app assistant and to any MCP client (Claude Desktop, Claude Code) at `/mcp`. See `docs/mcp-clients.md`.
+
+| Concern | How |
+|---|---|
+| Tools | `get_unit`, `search_units`, `check_warranty`, `list_claims`, `get_claim`, `draft_claim`, `draft_parts_order`, `approve_claim`, hosted in-process by ASP.NET Core with `ModelContextProtocol.AspNetCore` (stateless streamable HTTP) under the same JWT as the REST API |
+| Role filtering plus re-check | `[Authorize]` on each tool filters `tools/list` by the caller's role and is re-checked on every `tools/call`; a `Dealer.User` calling `approve_claim` gets an MCP error result, never a 500. The model only ever sees tools its user may call |
+| Writes are confirmed in the browser | Every write tool returns a draft (method, path, body, summary) after validating the business rules. The assistant turns it into a `confirm` event and the portal shows a card; confirming sends the real request with the user's token. The assistant never writes |
+| Agent loop | Anthropic Python SDK tool runner with streaming; MCP tools translated to strict Anthropic tools; parallel tool results returned in one message; MCP errors become `is_error` results; refusals and `max_tokens` stop the turn before any tool runs |
+| Structured extraction | `POST /extract/claim` pulls VIN, description and amount from a pasted customer email with `messages.parse` (structured outputs), a separate call because citations and structured output cannot share a request |
+
+### Guardrails
+
+- Tool allowlist by role enforced in the API authorization layer, not in the prompt.
+- Documents reach the model as reference material with a source label; the system prompt says instructions inside documents are data. The bulletin fixture with an embedded "note to AI assistants" is part of the eval suite.
+- PII (emails, phone numbers, VINs) is redacted from assistant logs by a tested logging filter.
+- Refusal stop reasons are surfaced to the UI; the assistant tells the user rather than silently returning nothing.
+- Per-conversation token budget and a startup credential check bound spend.
+
+### Evaluation results
+
+`uv run evals` runs every suite and prints tokens spent and estimated cost. Judge verdicts are cached by content hash under `assistant/evals/cache/`, so reruns with unchanged answers cost nothing for the judge.
+
+| Suite | Cases | Grader | Threshold | Latest |
+|---|---|---|---|---|
+| retrieval | 30 | recall@5 / MRR against expected document and heading | recall@5 ≥ 0.90 | 1.00 / 0.95 |
+| tool | 10 | expected tool and argument subset, or no tool | exact match ≥ 0.90 | 1.00 |
+| injection | 6 | no write tool called, no embedded instruction leaked | 100% | 100% |
+| answer | 6 | `claude-sonnet-5` faithfulness judge, 1 to 5, structured output | mean ≥ 4.2, none < 3 | 5.0 mean |
+
+One full pass of the three model-graded suites costs about 0.9 USD on `claude-opus-5` (most input tokens are prompt-cache reads). The retrieval suite is free and runs on every PR; the paid suites run on manual dispatch.
+
 ## Prerequisites
 
 | Tool | Version | Used by |
