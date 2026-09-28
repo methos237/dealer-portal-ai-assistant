@@ -48,7 +48,7 @@ jobs:
         run: |
           uv run evals --suite retrieval | tee eval.txt
           { echo '## Retrieval eval'; echo; echo '```'; cat eval.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: eval-results
           path: assistant/evals/out/*.json
@@ -91,7 +91,7 @@ jobs:
         run: |
           uv run evals | tee eval.txt
           { echo '## Full eval'; echo; echo '```'; cat eval.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: eval-results-full
           path: assistant/evals/out/*.json
