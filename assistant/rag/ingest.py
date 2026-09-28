@@ -55,43 +55,67 @@ def ingest_file(conn: psycopg.Connection, embedder: Embedder, path: Path) -> str
     ).fetchone()
     if existing and existing[1] == content_hash:
         return "skipped"
-
     title, chunks = load(path)
     portal = _portal_document(conn, path.name)
-    kind = portal.get("kind") or (
-        "ServiceBulletin" if path.name.startswith("sb-") else "OwnerManual"
+    return upsert_document(
+        conn,
+        embedder,
+        existing_id=existing[0] if existing else None,
+        path=path.name,
+        title=title,
+        kind=portal.get("kind") or default_kind(path.name),
+        chunks=chunks,
+        content_hash=content_hash,
+        model=portal.get("model"),
+        portal_document_id=portal.get("portal_document_id"),
     )
-    vectors = embedder.embed([c.text for c in chunks])
 
+
+def default_kind(filename: str) -> str:
+    return "ServiceBulletin" if filename.startswith("sb-") else "OwnerManual"
+
+
+def upsert_document(
+    conn: psycopg.Connection,
+    embedder: Embedder,
+    *,
+    existing_id: int | None,
+    path: str,
+    title: str,
+    kind: str,
+    chunks: list[Chunk],
+    content_hash: str,
+    model: str | None = None,
+    portal_document_id: int | None = None,
+    external_id: str | None = None,
+) -> str:
+    """Embed chunks and replace (existing_id) or insert the document row and its chunks."""
+    vectors = embedder.embed([c.text for c in chunks])
     with conn.transaction():
-        if existing:
-            conn.execute("DELETE FROM rag.chunks WHERE doc_id = %s", (existing[0],))
+        if existing_id is not None:
+            conn.execute("DELETE FROM rag.chunks WHERE doc_id = %s", (existing_id,))
             conn.execute(
-                "UPDATE rag.documents SET title=%s, kind=%s, model=%s, portal_document_id=%s,"
-                " content_hash=%s, indexed_at=now() WHERE id=%s",
+                "UPDATE rag.documents SET path=%s, title=%s, kind=%s, model=%s,"
+                " portal_document_id=%s, external_id=%s, content_hash=%s, indexed_at=now()"
+                " WHERE id=%s",
                 (
+                    path,
                     title,
                     kind,
-                    portal.get("model"),
-                    portal.get("portal_document_id"),
+                    model,
+                    portal_document_id,
+                    external_id,
                     content_hash,
-                    existing[0],
+                    existing_id,
                 ),
             )
-            doc_id = existing[0]
+            doc_id = existing_id
         else:
             doc_id = conn.execute(
                 "INSERT INTO rag.documents"
-                " (path, title, kind, model, portal_document_id, content_hash)"
-                " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-                (
-                    path.name,
-                    title,
-                    kind,
-                    portal.get("model"),
-                    portal.get("portal_document_id"),
-                    content_hash,
-                ),
+                " (path, title, kind, model, portal_document_id, external_id, content_hash)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                (path, title, kind, model, portal_document_id, external_id, content_hash),
             ).fetchone()[0]
         with conn.cursor() as cur:
             cur.executemany(
