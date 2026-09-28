@@ -1,10 +1,12 @@
 using DealerPortal.Api.Auth;
 using DealerPortal.Api.Data;
 using DealerPortal.Api.Endpoints;
+using DealerPortal.Api.Mcp;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
+using ModelContextProtocol.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +21,13 @@ builder.Services.AddDbContext<PortalDbContext>(o =>
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
 builder.Services.AddAuthorizationBuilder().AddPortalPolicies();
+
+// Same tools for the in-app assistant and any MCP client (Claude Desktop, Claude Code). Stateless
+// streamable HTTP under the same JWT; [Authorize] on tools filters tools/list and re-checks on call.
+builder.Services.AddMcpServer()
+    .WithHttpTransport(o => o.SessionMode = HttpServerSessionMode.Stateless)
+    .WithTools(PortalTools.All())
+    .AddAuthorizationFilters();
 
 var app = builder.Build();
 
@@ -40,6 +49,7 @@ app.UseMiddleware<CurrentUserMiddleware>();
 
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapPortal();
+app.MapMcp("/mcp").RequireAuthorization(Policies.DealerUser);
 
 app.Run();
 
