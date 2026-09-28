@@ -1,0 +1,6 @@
+@DealerPortal.Api_HostAddress = http://localhost:5234
+
+GET {{DealerPortal.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
