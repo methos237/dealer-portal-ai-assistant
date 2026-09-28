@@ -15,7 +15,8 @@ INSERT INTO portal.app_users (id, object_id, email, display_name, dealer_id) VAL
   (5, '00000000-0000-4000-8000-000000000205', 'admin@lakeshore.example', 'Priya Natarajan (Dealer.Admin)', 2),
   (6, '00000000-0000-4000-8000-000000000306', 'user@highdesert.example', 'Sam Reyes (Dealer.User)', 3),
   (7, '00000000-0000-4000-8000-000000000307', 'admin@highdesert.example', 'Jordan Whitfield (Dealer.Admin)', 3),
-  (8, '00000000-0000-4000-8000-000000000008', 'warranty@thor.example', 'Casey Lindqvist (Thor.Admin)', NULL);
+  (8, '00000000-0000-4000-8000-000000000008', 'warranty@thor.example', 'Casey Lindqvist (Thor.Admin)', NULL),
+  (9, '1136bcfb-6cfa-4198-ae8b-38af84bc1846', 'jeep8598@gmail.com', 'Tenant owner (Dealer.User, dev token for MCP clients)', 1);
 
 INSERT INTO portal.units (id, dealer_id, vin, model, delivery_date) VALUES
   (1, 1, '1THRA24X2RN000001', 'Aria 24', (CURRENT_DATE - INTERVAL '12 months')::date),
