@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { readSse } from "@/lib/sse";
+import { approveClaim, createClaim, createPartsOrder } from "@/lib/actions";
+import type { NewClaim, NewPartsOrder } from "@/lib/types";
 
 type Citation = {
   cited_text: string;
@@ -14,9 +16,25 @@ type Citation = {
   } | null;
 };
 type Block = { type: "text"; text: string; citations: Citation[] };
+type ToolCall = {
+  name: string;
+  input: Record<string, unknown>;
+  is_error: boolean;
+};
+type Draft = {
+  kind: "claim" | "parts_order" | "approve_claim";
+  method: string;
+  path: string;
+  body: Record<string, unknown> | null;
+  summary: string;
+  status?: "pending" | "done" | "failed";
+  result?: string;
+};
 type Message = {
   role: "user" | "assistant";
   blocks: Block[];
+  tools?: ToolCall[];
+  drafts?: Draft[];
   usage?: Record<string, number>;
   stopReason?: string;
 };
@@ -153,6 +171,38 @@ export function AssistantPanel() {
     }
   }
 
+  async function confirm(messageIndex: number, draftIndex: number) {
+    const draft = messages[messageIndex].drafts![draftIndex];
+    const result =
+      draft.kind === "claim"
+        ? await createClaim(draft.body as unknown as NewClaim)
+        : draft.kind === "parts_order"
+          ? await createPartsOrder(draft.body as unknown as NewPartsOrder)
+          : await approveClaim(
+              Number(draft.path.match(/\/claims\/(\d+)\/approve/)?.[1]),
+            );
+    setMessages((m) =>
+      m.map((msg, i) =>
+        i !== messageIndex
+          ? msg
+          : {
+              ...msg,
+              drafts: msg.drafts!.map((d, j) =>
+                j !== draftIndex
+                  ? d
+                  : result.ok
+                    ? {
+                        ...d,
+                        status: "done",
+                        result: `Done. ${"id" in result.value ? `Record #${result.value.id}.` : ""}`,
+                      }
+                    : { ...d, status: "failed", result: result.error },
+              ),
+            },
+      ),
+    );
+  }
+
   async function showChunk(id: number) {
     setChunk(await api(`chunks/${id}`).then((r) => r.json()));
   }
@@ -212,6 +262,47 @@ export function AssistantPanel() {
                       </button>
                     ))}
                   </span>
+                ))}
+                {m.tools && m.tools.length > 0 && (
+                  <ul
+                    className="mt-2 space-y-0.5 text-xs text-slate-500"
+                    data-testid="tools"
+                  >
+                    {m.tools.map((t, k) => (
+                      <li key={k}>
+                        {t.is_error ? "✕" : "✓"} <code>{t.name}</code>{" "}
+                        {JSON.stringify(t.input)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {m.drafts?.map((d, k) => (
+                  <div
+                    key={k}
+                    className="mt-2 rounded border border-amber-300 bg-amber-50 p-3 text-sm"
+                    data-testid="confirm-card"
+                  >
+                    <div className="font-medium text-amber-900">
+                      Confirm: {d.kind.replace("_", " ")}
+                    </div>
+                    <p className="mt-1">{d.summary}</p>
+                    {d.status === "pending" && (
+                      <button
+                        type="button"
+                        onClick={() => confirm(i, k)}
+                        className="mt-2 rounded bg-amber-700 px-3 py-1 text-white hover:bg-amber-800"
+                      >
+                        Confirm and send
+                      </button>
+                    )}
+                    {d.status !== "pending" && (
+                      <p
+                        className={`mt-1 text-xs ${d.status === "failed" ? "text-red-700" : "text-green-800"}`}
+                      >
+                        {d.result ?? (d.status === "done" ? "Confirmed." : "")}
+                      </p>
+                    )}
+                  </div>
                 ))}
                 {m.stopReason === "refusal" && (
                   <p className="mt-1 text-xs text-amber-800">
