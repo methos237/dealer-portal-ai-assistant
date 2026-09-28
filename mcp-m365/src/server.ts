@@ -6,7 +6,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod";
 import { extractText, isExtractable } from "./extract.js";
-import type { DriveItem, Graph } from "./graph.js";
+import { GraphError, type DriveItem, type Graph } from "./graph.js";
 
 export const MAX_TEXT_CHARS = 60_000;
 
@@ -125,15 +125,35 @@ export function createServer(graph: Graph, site: string): McpServer {
       const drives = drive_id
         ? [drive_id]
         : (await graph.listLibraries(site)).map((l) => l.id);
-      const results = await Promise.all(
-        drives.map((d) => graph.search(d, query)),
-      );
-      return ok(
-        results
+      try {
+        const results = await Promise.all(
+          drives.map((d) => graph.search(d, query)),
+        );
+        return ok(
+          results
+            .flat()
+            .filter((i) => !i.folder)
+            .map(item),
+        );
+      } catch (e) {
+        if (!(e instanceof GraphError) || e.status < 500) throw e;
+        // ponytail: Graph search 500s for hours on a freshly provisioned tenant; match file names at
+        // the library root instead and say so. Drop once the tenant's search index is reliable.
+        const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+        const results = await Promise.all(
+          drives.map((d) => graph.listDocuments(d)),
+        );
+        const files = results
           .flat()
-          .filter((i) => !i.folder)
-          .map(item),
-      );
+          .filter(
+            (i) =>
+              !i.folder && terms.some((t) => i.name.toLowerCase().includes(t)),
+          );
+        return ok({
+          note: `Graph search unavailable (${e.message}); matched file names at the library root only.`,
+          results: files.map(item),
+        });
+      }
     },
   );
 

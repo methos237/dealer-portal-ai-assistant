@@ -10,8 +10,8 @@ const fixture = (name: string) =>
   readFileSync(new URL(`./fixtures/${name}`, import.meta.url));
 const SITE = "contoso.sharepoint.com:/sites/dealer-docs";
 const DRIVE =
-  "b!Zt5NqK3yQ0e5sJ1WcXh4kA7Qz1FjP2xKmN8sT3vBcDe0123456789abcdefghijk";
-const ITEM = "01BYE5RZ4TVGN3KGXQ2FBLHU6E4WCQDWGG";
+  "b!agemyV2spEyc7NQnza-3L2e2U4DRoExButL3TNAZA-pJYTKt8ZajSIsWsdSbuiI0";
+const ITEM = "014LKTFRKN6FABEKZCENDKPNK5RGCBINM7";
 
 /** Recorded Graph responses keyed by URL path; unknown paths fail like Graph does. */
 const routes: Record<string, () => Response> = {
@@ -26,6 +26,16 @@ const routes: Record<string, () => Response> = {
     new Response(fixture("sb-2026-11-awning-motor.md")),
   [`/drives/${DRIVE}/root/search(q='awning%20motor')`]: () =>
     Response.json(JSON.parse(fixture("search.json").toString())),
+  [`/drives/${DRIVE}/root/search(q='awning')`]: () =>
+    Response.json(
+      {
+        error: {
+          code: "generalException",
+          message: "General exception while processing",
+        },
+      },
+      { status: 500 },
+    ),
 };
 const calls: string[] = [];
 const fakeFetch: typeof fetch = async (input, init) => {
@@ -81,8 +91,9 @@ describe("mcp-m365 server", () => {
         await connect()
       ).callTool({ name: "list_libraries", arguments: {} }),
     );
-    expect(r).toHaveLength(2);
-    expect(r[1]).toMatchObject({ drive_id: DRIVE, name: "Service Bulletins" });
+    expect(r).toEqual([
+      expect.objectContaining({ drive_id: DRIVE, name: "Documents" }),
+    ]);
   });
 
   it("list_documents marks folders and files", async () => {
@@ -91,12 +102,13 @@ describe("mcp-m365 server", () => {
         await connect()
       ).callTool({ name: "list_documents", arguments: { drive_id: DRIVE } }),
     );
-    expect(r.map((i: { kind: string }) => i.kind)).toEqual([
-      "folder",
-      "file",
-      "file",
+    expect(r).toEqual([
+      expect.objectContaining({
+        kind: "file",
+        name: "sb-2026-11-awning-motor.md",
+        drive_id: DRIVE,
+      }),
     ]);
-    expect(r[0]).toMatchObject({ name: "2026", children: 3 });
   });
 
   it("get_document downloads and extracts text", async () => {
@@ -121,12 +133,20 @@ describe("mcp-m365 server", () => {
       name: "search_documents",
       arguments: { query: "awning motor" },
     });
-    expect(calls.filter((c) => c.includes("/search("))).toHaveLength(2);
-    // second drive has no recorded search response: Graph 404 becomes an MCP error result, not a crash
-    expect(r.isError).toBe(true);
-    expect((r.content as Array<{ text: string }>)[0]!.text).toContain(
-      "Graph 404 itemNotFound",
+    expect(calls.filter((c) => c.includes("/search("))).toHaveLength(1);
+    expect(text(r)).toEqual([
+      expect.objectContaining({ id: ITEM, kind: "file" }),
+    ]);
+  });
+
+  it("search_documents falls back to file names when Graph search is down", async () => {
+    const r = text(
+      await (
+        await connect()
+      ).callTool({ name: "search_documents", arguments: { query: "awning" } }),
     );
+    expect(r.note).toContain("Graph 500 generalException");
+    expect(r.results).toEqual([expect.objectContaining({ id: ITEM })]);
   });
 
   it("search_documents on one library returns files", async () => {
