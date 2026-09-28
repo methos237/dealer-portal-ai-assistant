@@ -2,15 +2,9 @@
   "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#drives(id,name,webUrl,driveType)",
   "value": [
     {
-      "id": "b!Zt5NqK3yQ0e5sJ1WcXh4kA7Qz1FjP2xKmN8sT3vBcDeFgHiJkLmNoPqRsTuVwXyZ",
+      "id": "b!agemyV2spEyc7NQnza-3L2e2U4DRoExButL3TNAZA-pJYTKt8ZajSIsWsdSbuiI0",
       "name": "Documents",
       "webUrl": "https://contoso.sharepoint.com/sites/dealer-docs/Shared%20Documents",
-      "driveType": "documentLibrary"
-    },
-    {
-      "id": "b!Zt5NqK3yQ0e5sJ1WcXh4kA7Qz1FjP2xKmN8sT3vBcDe0123456789abcdefghijk",
-      "name": "Service Bulletins",
-      "webUrl": "https://contoso.sharepoint.com/sites/dealer-docs/Service%20Bulletins",
       "driveType": "documentLibrary"
     }
   ]
