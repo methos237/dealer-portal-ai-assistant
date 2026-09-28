@@ -109,14 +109,18 @@ if [ -z "$M365_APP_ID" ]; then
     332a536c-c7ef-4017-ab91-336970924f0d=Role \
     01d4889c-1287-42c6-ac1f-5d1e02578ef6=Role >/dev/null
 fi
-ensure_sp "$M365_APP_ID" >/dev/null
-log "granting admin consent for dealer-portal-m365"
-consented=
-for _ in $(seq 1 18); do
-  if az ad app permission admin-consent --id "$M365_APP_ID" 2>/dev/null; then consented=1; break; fi
-  sleep 10
+M365_SP_ID=$(ensure_sp "$M365_APP_ID")
+# `az ad app permission admin-consent` reports success without creating app role assignments for
+# application permissions in this tenant, so grant them directly (idempotent).
+GRAPH_SP_ID=$(az ad sp show --id 00000003-0000-0000-c000-000000000000 --query id -o tsv)
+granted=$(az rest --method GET --url "$GRAPH/servicePrincipals/$M365_SP_ID/appRoleAssignments" --query 'value[].appRoleId' -o tsv)
+for role in 332a536c-c7ef-4017-ab91-336970924f0d 01d4889c-1287-42c6-ac1f-5d1e02578ef6; do
+  if ! grep -q "$role" <<<"$granted"; then
+    log "granting Graph app role $role to dealer-portal-m365"
+    az rest --method POST --url "$GRAPH/servicePrincipals/$M365_SP_ID/appRoleAssignments" \
+      --body "{\"principalId\": \"$M365_SP_ID\", \"resourceId\": \"$GRAPH_SP_ID\", \"appRoleId\": \"$role\"}" >/dev/null
+  fi
 done
-[ -n "$consented" ] || { log "admin consent still failing after 3 minutes; rerun this script"; exit 1; }
 log "rotating dealer-portal-m365 client secret"
 M365_SECRET=$(az ad app credential reset --id "$M365_APP_ID" --display-name local --years 1 --query password -o tsv 2>/dev/null)
 
