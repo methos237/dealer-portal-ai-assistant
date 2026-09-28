@@ -28,7 +28,7 @@ claude mcp add --transport http dealer-portal http://localhost:5080/mcp \
   --header "Authorization: Bearer $PORTAL_TOKEN"
 ```
 
-Then in a session: "Use dealer-portal to look up unit 1THRA24X0RN000001." Remove with `claude mcp remove dealer-portal`.
+Then in a session: "Use dealer-portal to look up unit 1THRA24X2RN000001." Remove with `claude mcp remove dealer-portal`.
 
 ## 3. Claude Desktop
 
@@ -50,7 +50,7 @@ Claude Desktop connects to remote servers through its Connectors UI (OAuth). For
 }
 ```
 
-Restart Claude Desktop. The tools panel lists `get_unit`, `search_units`, `check_warranty`, `list_claims`, `get_claim`, `draft_claim`, `draft_parts_order`, and `approve_claim` for `Thor.Admin`. Ask "Is unit 1THRA24X0RN000001 still under warranty?" and Claude calls `check_warranty`.
+Restart Claude Desktop. The tools panel lists `get_unit`, `search_units`, `check_warranty`, `list_claims`, `get_claim`, `draft_claim`, `draft_parts_order`, and `approve_claim` for `Thor.Admin`. Ask "Is unit 1THRA24X2RN000001 still under warranty?" and Claude calls `check_warranty`.
 
 ![Claude Desktop listing the portal tools](screenshots/claude-desktop-tools.png)
 

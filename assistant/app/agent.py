@@ -150,8 +150,9 @@ async def mcp_tools(url: str, token: str) -> AsyncIterator[list]:
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 listed = (await session.list_tools()).tools
-                for t in listed:
-                    t.inputSchema = _strict(t.inputSchema)
+                for t in listed:  # mcp 2.x names it input_schema, 1.x inputSchema
+                    field = "input_schema" if hasattr(t, "input_schema") else "inputSchema"
+                    setattr(t, field, _strict(getattr(t, field)))
                 yield [async_mcp_tool(t, session, strict=True) for t in listed]
 
 
@@ -209,7 +210,7 @@ async def run_turn(
             result.usage[k] += getattr(message.usage, k, 0) or 0
         result.stop_reason = message.stop_reason
         if message.stop_reason != "tool_use":
-            break  # end_turn, refusal, max_tokens: the runner stops too; never execute tools here
+            continue  # end_turn, refusal, max_tokens: runner ends the loop; never run tools here
 
         response = (
             await runner.generate_tool_call_response()
