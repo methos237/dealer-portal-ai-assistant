@@ -1,0 +1,17 @@
+.git
+.env
+.env.*
+!.env.example
+**/node_modules
+**/.next
+**/dist
+**/bin
+**/obj
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/TestResults
+**/test-results
+**/playwright-report
+assistant/evals/out
