@@ -64,3 +64,15 @@ def test_dealer_scoped_documents_are_hidden_from_other_dealers(conn, tmp_path) -
     )
     assert retrieve(conn, FakeEmbedder(), "awning wind", dealer_id=2)[0].path == "awning.md"
     assert retrieve(conn, FakeEmbedder(), "awning wind", dealer_id=None)[0].path == "awning.md"
+
+
+def test_pdf_fixture_is_ingested_with_page_metadata(conn) -> None:
+    pdf_dir = Path(__file__).resolve().parent.parent / "fixtures" / "docs" / "pdf"
+    results = ingest_dir(conn, FakeEmbedder(), pdf_dir)
+    assert results["owner-manual-aria.pdf"] == "indexed"
+    row = conn.execute(
+        "SELECT d.title, c.metadata FROM rag.chunks c JOIN rag.documents d ON d.id = c.doc_id"
+        " WHERE d.path = 'owner-manual-aria.pdf' ORDER BY c.ord LIMIT 1"
+    ).fetchone()
+    assert row[0].startswith("Aria Owners Manual")
+    assert row[1]["page"] == 1
