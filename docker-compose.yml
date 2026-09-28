@@ -16,5 +16,18 @@ services:
       timeout: 3s
       retries: 10
 
+  # Optional: `docker compose --profile local-llm up -d`, then ANTHROPIC_BASE_URL=http://localhost:4000
+  # and ANTHROPIC_API_KEY=local for the assistant. Needs `ollama serve` with `ollama pull qwen3` on the host.
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    profiles: ["local-llm"]
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./docker/litellm/config.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   pgdata:
