@@ -15,7 +15,7 @@ resource account 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
 resource embedding 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
   parent: account
   name: embeddingDeploymentName
-  sku: { name: 'Standard', capacity: 50 }
+  sku: { name: 'GlobalStandard', capacity: 50 }  // Standard is not offered for this model in every region
   properties: {
     model: { format: 'OpenAI', name: 'text-embedding-3-small', version: '1' }
   }

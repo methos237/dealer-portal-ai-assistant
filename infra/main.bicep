@@ -1,7 +1,9 @@
 // Resource-group scope: scripts/azure-up.sh and deploy.yml create rg-dealer-portal first, so the deploy
 // identity needs rights on one resource group only.
-@description('Azure region for every resource.')
+@description('Azure region for every resource except Postgres.')
 param location string = resourceGroup().location
+@description('Postgres Flexible Server region. New subscriptions are often refused Burstable capacity in eastus/eastus2; centralus accepts it.')
+param postgresLocation string = 'centralus'
 @description('Container registry namespace the App Service images are pulled from.')
 param imageRegistry string = 'ghcr.io/methos237'
 param imageTag string = 'latest'
@@ -42,7 +44,7 @@ module monitoring 'monitoring.bicep' = {
 
 module postgres 'postgres.bicep' = {
   name: 'postgres'
-  params: { location: location, adminPassword: postgresAdminPassword }
+  params: { location: postgresLocation, adminPassword: postgresAdminPassword }
 }
 
 module openai 'openai.bicep' = {

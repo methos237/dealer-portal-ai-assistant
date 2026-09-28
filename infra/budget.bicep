@@ -1,6 +1,6 @@
 param amount int = 30
 param contactEmail string
-param startDate string = '${substring(utcNow(), 0, 7)}-01'
+param startDate string = '${substring(utcNow(), 0, 7)}-01T00:00:00Z'
 
 resource budget 'Microsoft.Consumption/budgets@2023-11-01' = {
   name: 'budget-dealer-portal'
