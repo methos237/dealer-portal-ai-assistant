@@ -49,6 +49,9 @@ def dsn():
 
 @pytest.fixture
 def conn(dsn):
+    """Fresh tables per test; the container is shared for speed."""
     with psycopg.connect(dsn) as c:
+        c.execute("TRUNCATE rag.documents, rag.conversations CASCADE")
+        c.commit()
         yield c
         c.rollback()
