@@ -1,0 +1,15 @@
+# LiteLLM proxy: Anthropic Messages format in, Ollama out. Plumbing iteration only; tool use and
+# citations are unreliable on local models, so eval numbers are never reported from this path.
+model_list:
+  - model_name: claude-opus-5
+    litellm_params:
+      model: ollama_chat/qwen3
+      api_base: http://host.docker.internal:11434
+  - model_name: claude-sonnet-5
+    litellm_params:
+      model: ollama_chat/qwen3
+      api_base: http://host.docker.internal:11434
+litellm_settings:
+  drop_params: true   # ignore Anthropic-only params (thinking, output_config, cache_control)
+general_settings:
+  dangerously_permit_weak_or_unset_master_key: true   # local only, no auth on :4000

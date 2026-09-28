@@ -44,3 +44,4 @@ infra/**/*.json
 .idea/
 .vscode/
 web/next-env.d.ts
+:memory:.ses

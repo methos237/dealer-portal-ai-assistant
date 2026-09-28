@@ -1,5 +1,5 @@
 # Local development. `make dev` starts Postgres and the three dev servers; Ctrl-C stops them.
-.PHONY: dev up down setup api web assistant migrate check
+.PHONY: dev up down setup api web assistant migrate ingest evals check
 
 ENV_FILE := $(CURDIR)/.env
 
@@ -31,6 +31,12 @@ assistant:
 
 migrate:
 	cd assistant && uv run --env-file $(ENV_FILE) python -m rag.migrate
+
+ingest:
+	cd assistant && uv run --env-file $(ENV_FILE) python -m rag.ingest fixtures/docs
+
+evals:
+	cd assistant && uv run --env-file $(ENV_FILE) evals --suite retrieval
 
 ## Everything CI runs, locally
 check:
