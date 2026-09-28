@@ -4,9 +4,10 @@ import os
 from pathlib import Path
 
 import anthropic
+import anyio
 import pytest
 
-from app.chat import build_request, stream_answer
+from app.agent import build_request, run_turn
 from rag.retrieval import Hit
 
 CASSETTE = (
@@ -31,6 +32,12 @@ HITS = [
     )
 ]
 
+QUESTION = "What hitch ball size does the Aria need?"
+
+
+async def collect(client, request):
+    return [e async for e in run_turn(client, request, [], HITS)]
+
 
 @pytest.fixture(scope="module")
 def vcr_config():
@@ -41,35 +48,27 @@ def vcr_config():
 def test_recorded_turn_cites_the_document() -> None:
     if not CASSETTE.exists() and not os.environ.get("ANTHROPIC_API_KEY"):
         pytest.skip("no cassette recorded yet and no ANTHROPIC_API_KEY to record one")
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "recorded"))
-    events = list(
-        stream_answer(
-            client, build_request([], "What hitch ball size does the Aria need?", HITS), HITS
-        )
-    )
+    client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "recorded"))
+    events = anyio.run(collect, client, build_request([], QUESTION, HITS))
     kinds = [e for e, _ in events]
     assert "citation" in kinds and kinds[-1] == "done"
     done = events[-1][1]
-    assert done["stop_reason"] == "end_turn"
-    assert "2-5/16" in "".join(b["text"] for b in done["content"])
-    assert done["content"][0]["citations"] or any(b["citations"] for b in done["content"])
+    assert done.stop_reason == "end_turn"
+    assert "2-5/16" in "".join(b["text"] for b in done.content)
+    assert any(b["citations"] for b in done.content)
 
 
 @pytest.mark.live
 def test_second_turn_reads_the_prompt_cache() -> None:
     if not os.environ.get("ANTHROPIC_API_KEY"):
         pytest.skip("ANTHROPIC_API_KEY not set")
-    client = anthropic.Anthropic()
-    first = list(
-        stream_answer(
-            client, build_request([], "What hitch ball size does the Aria need?", HITS), HITS
-        )
-    )[-1][1]
+    client = anthropic.AsyncAnthropic()
+    first = anyio.run(collect, client, build_request([], QUESTION, HITS))[-1][1]
     history = [
-        {"role": "user", "content": "What hitch ball size does the Aria need?"},
-        {"role": "assistant", "content": "".join(b["text"] for b in first["content"])},
+        {"role": "user", "content": QUESTION},
+        {"role": "assistant", "content": "".join(b["text"] for b in first.content)},
     ]
-    second = list(
-        stream_answer(client, build_request(history, "And the tongue weight range?", HITS), HITS)
+    second = anyio.run(
+        collect, client, build_request(history, "And the tongue weight range?", HITS)
     )[-1][1]
-    assert second["usage"]["cache_read_input_tokens"] > 0
+    assert second.usage["cache_read_input_tokens"] > 0

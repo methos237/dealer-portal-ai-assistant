@@ -1,0 +1,10 @@
+{
+  "get_unit": {"id": 1, "vin": "1THRA24X0RN000001", "model": "Aria 24", "deliveryDate": "2025-11-15", "inWarranty": true},
+  "search_units": [{"id": 1, "vin": "1THRA24X0RN000001", "model": "Aria 24", "deliveryDate": "2025-11-15", "inWarranty": true}],
+  "check_warranty": {"vin": "1THRA24X0RN000001", "deliveryDate": "2025-11-15", "warrantyEnds": "2028-11-15", "inWarranty": true, "monthsRemaining": 26},
+  "list_claims": [{"id": 12, "unitId": 1, "vin": "1THRA24X0RN000001", "description": "Awning motor stalls", "amount": 420.5, "status": "Open", "createdAt": "2026-08-01T00:00:00Z", "approvedAt": null}],
+  "get_claim": {"id": 17, "unitId": 4, "vin": "1THRS36X4RN000004", "description": "Inverter shuts down under load", "amount": 7250.0, "status": "PendingApproval", "createdAt": "2026-08-01T00:00:00Z", "approvedAt": null},
+  "draft_claim": {"kind": "claim", "method": "POST", "path": "/claims", "body": {"unitId": 1, "description": "Water heater failure", "amount": 850.0}, "summary": "File an Open claim for 850.00 USD on 1THRA24X0RN000001 (Aria 24)."},
+  "draft_parts_order": {"kind": "parts_order", "method": "POST", "path": "/parts-orders", "body": {"unitId": null, "lines": [{"sku": "FRN-SAIL", "quantity": 1}]}, "summary": "Order 1 line(s) totalling 19.95 USD: 1 × FRN-SAIL (Furnace sail switch)"},
+  "approve_claim": {"kind": "approve_claim", "method": "POST", "path": "/claims/17/approve", "body": null, "summary": "Approve claim 17 for 7,250.00 USD on 1THRS36X4RN000004."}
+}

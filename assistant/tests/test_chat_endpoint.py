@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ from app.auth import User, current_user
 from app.main import app
 from rag.ingest import ingest_dir
 from tests.conftest import FakeEmbedder
-from tests.fakes import FakeAnthropic, citation, text, text_start
+from tests.fakes import FakeAsyncAnthropic, Turn, citation, text, text_start, usage
 from tests.test_ingest_retrieval import write_docs
 
 OID = str(uuid.uuid4())
@@ -31,21 +32,31 @@ def client(conn, tmp_path: Path):
     write_docs(tmp_path)
     ingest_dir(conn, FakeEmbedder(), tmp_path)
     conn.commit()
-    fake = FakeAnthropic(
+    fake = FakeAsyncAnthropic(
         [
-            text_start(),
-            text("Retract above "),
-            citation("wind exceeds 20 mph", 0, "Awning Guide"),
-            text("20 mph."),
-        ],
-        usage={"input_tokens": 900, "output_tokens": 30, "cache_read_input_tokens": 850},
+            Turn(
+                [
+                    text_start(),
+                    text("Retract above "),
+                    citation("wind exceeds 20 mph", 0, "Awning Guide"),
+                    text("20 mph."),
+                ],
+                usage_=usage(input_tokens=900, output_tokens=30, cache_read_input_tokens=850),
+            )
+        ]
     )
+
+    @asynccontextmanager
+    async def no_tools(token: str):
+        yield []
+
     app.dependency_overrides[current_user] = lambda: User(
         oid=OID, roles=["Dealer.User"], dealer_id=1, token="t"
     )
     app.dependency_overrides[chat.get_conn] = lambda: conn
     app.dependency_overrides[chat.get_client] = lambda: fake
     app.dependency_overrides[chat.embedder] = lambda: FakeEmbedder()
+    app.dependency_overrides[chat.get_tools_provider] = lambda: no_tools
     yield TestClient(app), fake
     app.dependency_overrides.clear()
     conn.execute("DELETE FROM rag.conversations WHERE user_oid = %s", (OID,))

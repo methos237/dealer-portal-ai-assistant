@@ -5,6 +5,7 @@ import psycopg
 from fastapi import FastAPI
 
 from app.chat import router as chat_router
+from app.extract import router as extract_router
 from rag import settings
 
 
@@ -41,6 +42,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Dealer Portal Assistant", lifespan=lifespan)
 app.include_router(chat_router)
+app.include_router(extract_router)
 
 
 @app.get("/health")
