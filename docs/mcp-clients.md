@@ -1,4 +1,4 @@
-# Using the portal tools from Claude Desktop and Claude Code
+# Using the portal tools from Claude Code and Claude Desktop
 
 The API serves its tools over the Model Context Protocol at `http://localhost:5080/mcp` (streamable HTTP). The same tools power the in-app assistant. Any MCP client can use them with a user token for the `dealer-portal-api` app; the API filters `tools/list` by the caller's role and re-checks every call.
 
@@ -21,16 +21,28 @@ curl -s http://localhost:5080/mcp -H "Authorization: Bearer $PORTAL_TOKEN" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-## 2. Claude Code
+## 2. Claude Code (verified)
 
 ```bash
-claude mcp add --transport http dealer-portal http://localhost:5080/mcp \
+claude mcp add --transport http --scope local dealer-portal http://localhost:5080/mcp \
   --header "Authorization: Bearer $PORTAL_TOKEN"
+claude mcp list          # dealer-portal: http://localhost:5080/mcp (HTTP) - ✔ Connected
 ```
 
-Then in a session: "Use dealer-portal to look up unit 1THRA24X2RN000001." Remove with `claude mcp remove dealer-portal`.
+`--scope local` keeps the token in your private `~/.claude.json` entry for this project; never put it in the committed `.mcp.json`. Rerun `claude mcp add` (after `claude mcp remove dealer-portal -s local`) when the token expires.
 
-## 3. Claude Desktop
+Headless check against the local API, as a `Dealer.User`:
+
+```
+$ claude -p "Use the dealer-portal MCP server: call check_warranty for VIN 1THRA24X2RN000001 \
+    and report the result in two lines." --allowedTools mcp__dealer-portal__check_warranty
+VIN 1THRA24X2RN000001 in warranty. Delivered 2025-09-28, ends 2028-09-28.
+Months remaining: 24.
+```
+
+The same session lists `check_warranty`, `draft_claim`, `draft_parts_order`, `get_claim`, `get_unit`, `list_claims` and `search_units`; `approve_claim` appears only for `Thor.Admin` tokens. In an interactive session, `/mcp` shows the server and its tools.
+
+## 3. Claude Desktop (not verified here)
 
 Claude Desktop connects to remote servers through its Connectors UI (OAuth). For a bearer token in local development, bridge through `mcp-remote` in `claude_desktop_config.json` (Settings → Developer → Edit Config):
 
@@ -49,10 +61,6 @@ Claude Desktop connects to remote servers through its Connectors UI (OAuth). For
   }
 }
 ```
-
-Restart Claude Desktop. The tools panel lists `get_unit`, `search_units`, `check_warranty`, `list_claims`, `get_claim`, `draft_claim`, `draft_parts_order`, and `approve_claim` for `Thor.Admin`. Ask "Is unit 1THRA24X2RN000001 still under warranty?" and Claude calls `check_warranty`.
-
-![Claude Desktop listing the portal tools](screenshots/claude-desktop-tools.png)
 
 ## What you cannot do from an MCP client
 
