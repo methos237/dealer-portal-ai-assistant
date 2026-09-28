@@ -46,9 +46,9 @@ WEB_URL=$(out webUrl); API_URL=$(out apiUrl); ASSISTANT_URL=$(out assistantUrl)
 
 log "rag schema and fixtures on Azure Postgres (Azure OpenAI embeddings)"
 MY_IP=$(curl -s https://api.ipify.org)
-az postgres flexible-server firewall-rule create -g "$RG" -s "${PG_HOST%%.*}" -r local-deploy \
+az postgres flexible-server firewall-rule create -g "$RG" -s "${PG_HOST%%.*}" -n local-deploy \
   --start-ip-address "$MY_IP" --end-ip-address "$MY_IP" -o none
-trap 'az postgres flexible-server firewall-rule delete -g "$RG" -s "${PG_HOST%%.*}" -r local-deploy -y -o none' EXIT
+trap 'az postgres flexible-server firewall-rule delete -g "$RG" -s "${PG_HOST%%.*}" -n local-deploy -y -o none' EXIT
 (
   cd assistant
   export DATABASE_URL="postgresql://portal:$AZURE_POSTGRES_PASSWORD@$PG_HOST:5432/dealer_portal?sslmode=require"

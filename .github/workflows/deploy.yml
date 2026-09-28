@@ -73,7 +73,7 @@ jobs:
         run: |
           IP=$(curl -s https://api.ipify.org)
           SERVER=${{ needs.infra.outputs.postgresHost }}; SERVER=${SERVER%%.*}
-          az postgres flexible-server firewall-rule create -g "$RG" -s "$SERVER" -r github-runner \
+          az postgres flexible-server firewall-rule create -g "$RG" -s "$SERVER" -n github-runner \
             --start-ip-address "$IP" --end-ip-address "$IP" -o none
       - name: rag.migrate and rag.ingest (Azure OpenAI embeddings)
         env:
@@ -90,7 +90,7 @@ jobs:
         if: always()
         run: |
           SERVER=${{ needs.infra.outputs.postgresHost }}; SERVER=${SERVER%%.*}
-          az postgres flexible-server firewall-rule delete -g "$RG" -s "$SERVER" -r github-runner -y -o none
+          az postgres flexible-server firewall-rule delete -g "$RG" -s "$SERVER" -n github-runner -y -o none
 
   functions:
     needs: infra
