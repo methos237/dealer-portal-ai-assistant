@@ -37,7 +37,7 @@ mcp-m365 (TypeScript)  ── Microsoft Graph ──► SharePoint document libr
                         ── Power BI REST   ──► Fabric semantic model (DAX)
 functions/ingest (Python, timer)  ── Graph delta ──► chunk, embed, upsert rag.chunks
 
-Azure: App Service (web, api, assistant) · Functions · Postgres Flexible · Azure OpenAI · Storage · Key Vault · App Insights · Bicep
+Azure (infra/, Bicep): App Service B1 (web, api, assistant containers from GHCR) · Functions Flex (ingest) · Postgres Flexible B1ms · Azure OpenAI (embeddings) · Storage · Key Vault (all secrets) · App Insights · OIDC deploy from GitHub Actions
 ```
 
 The browser talks to the assistant with the user's own Entra token. The assistant retrieves chunks, calls Claude with a cached system prompt, the tool list and document blocks, and streams text and citation events. Tool calls go to the API's `/mcp` endpoint with the same token, so authorization is enforced in the API, never in the prompt. A `draft_*` tool result becomes a confirmation card, and the browser posts the actual write to the API itself. The assistant never writes.
@@ -154,6 +154,25 @@ Dealers' documents already live in SharePoint. Two pieces connect them: an MCP s
 ```bash
 make m365        # mcp-m365 on :8100 (needs M365_* in .env)
 make functions   # one sync round without the Functions host; `cd functions && func start` runs the timer
+```
+
+## Azure
+
+Everything runs on Azure from one Bicep template, deployed by GitHub Actions with OIDC (no cloud credential stored in GitHub) or by `scripts/azure-up.sh` from a laptop. It is a demo: one region, the smallest SKUs, torn down when not in use.
+
+| Concern | How |
+|---|---|
+| Topology | Resource group `rg-dealer-portal` in `eastus2`: one Linux App Service plan (B1) running three Web Apps for Containers (web, api, assistant) from GHCR images; Postgres Flexible Server B1ms (PostgreSQL 17, `vector` allowlisted); Azure OpenAI S0 with `text-embedding-3-small`; Azure Functions Flex Consumption for the SharePoint ingestion timer; Storage; Key Vault; Log Analytics + Application Insights; a 30 USD monthly budget with alerts |
+| What Bicep manages | `infra/main.bicep` (resource-group scope) composes `storage`, `monitoring`, `postgres`, `openai`, `keyvault`, `apps`, `functions`, `keyvault-access`, `budget`. Every secret (Postgres password, web client secret, Auth.js secret, Anthropic key, M365 client secret, the Azure OpenAI key read at deploy time) lands in Key Vault; app settings hold Key Vault references and the apps' system identities get *Key Vault Secrets User*. Non-secret ids live in `infra/dev.parameters.json`; secrets arrive as parameters from GitHub secrets or `.env` |
+| OIDC over secrets | `scripts/azure-oidc-setup.sh` creates `dealer-portal-deploy` with federated credentials for `master` pushes and pull requests, scoped to the resource group (Contributor plus RBAC Administrator, needed for the role assignments in Bicep). `infra.yml` runs `what-if` on pull requests; `deploy.yml` runs after `images.yml` publishes the master images: Bicep, `rag.migrate` + `rag.ingest` against Azure Postgres with Azure OpenAI embeddings, Function zip deploy, app restarts, health checks |
+| Two embedding indexes | Local and CI use `fastembed` (384 dims, free). Azure uses `text-embedding-3-small` (1536 dims) and its own index, built by `deploy.yml`; `rag.meta` records the provider so an index is never queried with the wrong embedder |
+| Cost | About 0.04 USD per hour while up (App Service B1 about 13 USD/month, Postgres B1ms about 12.60 USD/month, the rest near zero at demo traffic). `scripts/azure-down.sh` deletes the resource group and purges the vault; the demo is down when nobody is looking at it |
+
+```bash
+scripts/entra-setup.sh          # app registrations incl. the Azure redirect URI
+scripts/azure-oidc-setup.sh     # deploy identity + GitHub variables (once)
+scripts/azure-up.sh             # deploy from .env; prints the portal URL
+scripts/azure-down.sh           # delete everything
 ```
 
 ## Prerequisites
