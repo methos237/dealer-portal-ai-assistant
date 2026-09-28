@@ -19,6 +19,15 @@ public class PortalApiTests(PortalFixture fx) : IClassFixture<PortalFixture>
     };
 
     [Fact]
+    public async Task Health_is_anonymous_and_healthy()
+    {
+        var res = await fx.Factory.CreateClient().GetAsync("/health");
+
+        res.EnsureSuccessStatusCode();
+        Assert.Equal("Healthy", await res.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Anonymous_request_gets_401_problem_details()
     {
         var res = await fx.Factory.CreateClient().GetAsync("/units");
