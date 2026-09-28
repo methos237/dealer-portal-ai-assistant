@@ -4,12 +4,14 @@
 #   dealer-portal-api  exposes scope access_as_user and app roles
 #                      Dealer.User, Dealer.Admin, Thor.Admin
 #   dealer-portal-web  Auth.js confidential client, redirect to localhost:3000
+#   dealer-portal-m365 app-only Graph client (Sites.Read.All, Files.Read.All) for mcp-m365
+#                      and the ingestion Function
 #   three test users   one per role, assigned to the api app
 #
 # Idempotent: apps and users are looked up by name and reused. The web client
 # secret and the test user password are rotated on every run (or pass
 # TEST_USER_PASSWORD to keep one). Prints the resulting .env lines to stdout.
-# Requires: az login as a tenant admin. dealer-portal-m365 is created in Phase 4.
+# Requires: az login as a tenant admin.
 set -euo pipefail
 
 GRAPH=https://graph.microsoft.com/v1.0
@@ -96,6 +98,32 @@ done
 log "rotating dealer-portal-web client secret"
 WEB_SECRET=$(az ad app credential reset --id "$WEB_APP_ID" --display-name local --years 1 --query password -o tsv 2>/dev/null)
 
+# ---------------------------------------------------------------- m365 app (app-only Graph)
+M365_APP_ID=$(app_by_name dealer-portal-m365)
+if [ -z "$M365_APP_ID" ]; then
+  log "creating dealer-portal-m365"
+  M365_APP_ID=$(az ad app create --display-name dealer-portal-m365 \
+    --sign-in-audience AzureADMyOrg --query appId -o tsv)
+  # Microsoft Graph application permissions: Sites.Read.All, Files.Read.All (read only, no write role)
+  az ad app permission add --id "$M365_APP_ID" --api 00000003-0000-0000-c000-000000000000 --api-permissions \
+    332a536c-c7ef-4017-ab91-336970924f0d=Role \
+    01d4889c-1287-42c6-ac1f-5d1e02578ef6=Role >/dev/null
+fi
+M365_SP_ID=$(ensure_sp "$M365_APP_ID")
+# `az ad app permission admin-consent` reports success without creating app role assignments for
+# application permissions in this tenant, so grant them directly (idempotent).
+GRAPH_SP_ID=$(az ad sp show --id 00000003-0000-0000-c000-000000000000 --query id -o tsv)
+granted=$(az rest --method GET --url "$GRAPH/servicePrincipals/$M365_SP_ID/appRoleAssignments" --query 'value[].appRoleId' -o tsv)
+for role in 332a536c-c7ef-4017-ab91-336970924f0d 01d4889c-1287-42c6-ac1f-5d1e02578ef6; do
+  if ! grep -q "$role" <<<"$granted"; then
+    log "granting Graph app role $role to dealer-portal-m365"
+    az rest --method POST --url "$GRAPH/servicePrincipals/$M365_SP_ID/appRoleAssignments" \
+      --body "{\"principalId\": \"$M365_SP_ID\", \"resourceId\": \"$GRAPH_SP_ID\", \"appRoleId\": \"$role\"}" >/dev/null
+  fi
+done
+log "rotating dealer-portal-m365 client secret"
+M365_SECRET=$(az ad app credential reset --id "$M365_APP_ID" --display-name local --years 1 --query password -o tsv 2>/dev/null)
+
 # ---------------------------------------------------------------- test users
 assign_role() {  # upn role
   local user_id role_id existing
@@ -134,4 +162,12 @@ TEST_USER_PASSWORD=$TEST_USER_PASSWORD
 TEST_USER_DEALER_USER=dealer.user@$TENANT_DOMAIN
 TEST_USER_DEALER_ADMIN=dealer.admin@$TENANT_DOMAIN
 TEST_USER_THOR_ADMIN=thor.admin@$TENANT_DOMAIN
+
+# Microsoft 365 (mcp-m365, functions). M365_SITE: hostname:/sites/name or a Graph site id.
+M365_TENANT_ID=$TENANT_ID
+M365_CLIENT_ID=$M365_APP_ID
+M365_CLIENT_SECRET=$M365_SECRET
+M365_SITE=${TENANT_DOMAIN%%.onmicrosoft.com}.sharepoint.com:/sites/dealer-docs
+M365_LIBRARY=Documents
+M365_MCP_URL=http://localhost:8100/mcp
 ENV

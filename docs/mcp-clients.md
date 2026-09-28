@@ -62,6 +62,50 @@ Claude Desktop connects to remote servers through its Connectors UI (OAuth). For
 }
 ```
 
+## 4. mcp-m365 (SharePoint) in Claude Desktop and Claude Code
+
+`mcp-m365/` is the second server: it reads a SharePoint site's document libraries with an app-only Graph credential, so it needs the `M365_*` values from `scripts/entra-setup.sh` rather than a user token. Build once (`cd mcp-m365 && npm ci && npm run build`), then:
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "dealer-portal-m365": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-m365/dist/stdio.js"],
+      "env": {
+        "M365_TENANT_ID": "<tenant id>",
+        "M365_CLIENT_ID": "<dealer-portal-m365 app id>",
+        "M365_CLIENT_SECRET": "<secret>",
+        "M365_SITE": "yourtenant.sharepoint.com:/sites/dealer-docs"
+      }
+    }
+  }
+}
+```
+
+Claude Code:
+
+```bash
+claude mcp add --scope local dealer-portal-m365 \
+  -e M365_TENANT_ID=... -e M365_CLIENT_ID=... -e M365_CLIENT_SECRET=... -e M365_SITE=... \
+  -- node /absolute/path/to/mcp-m365/dist/stdio.js
+```
+
+Headless check (verified):
+
+```
+$ claude -p "Use the dealer-portal-m365 MCP server: list the document libraries, then read the first \
+    document in the first library and report its title and the replacement part number in two lines." \
+    --allowedTools mcp__dealer-portal-m365__list_libraries,mcp__dealer-portal-m365__list_documents,mcp__dealer-portal-m365__get_document
+One library found ("Documents"), one file in it.
+Title: Service Bulletin SB-2026-11: Awning motor AWN-1200 intermittent stop
+Replacement part number: AWN-1200-H2
+```
+
+Tools: `list_libraries`, `list_documents`, `get_document`, `search_documents`. All read-only; the app registration has no write permission. `search_documents` falls back to file-name matching (and says so) while a new tenant's search service is still provisioning.
+
 ## What you cannot do from an MCP client
 
 Write tools return drafts. `draft_claim` validates the unit and warranty window and returns the request the portal would send; nothing is saved. Filing, ordering and approving happen only when a signed-in user confirms in the portal, with their own token.

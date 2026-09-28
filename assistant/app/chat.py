@@ -4,6 +4,7 @@ import json
 import os
 import uuid
 from collections.abc import AsyncIterator, Iterator
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Any
 
 import anthropic
@@ -78,9 +79,24 @@ def embedder() -> Embedder:
     return _embedder
 
 
-def tools_for(token: str):
-    """Async context manager yielding this user's portal tools. Overridden in tests."""
-    return mcp_tools(f"{portal_api_url()}/mcp", token)
+def tool_sources(user: User) -> list[str]:
+    """MCP servers this user gets tools from: the portal api always; mcp-m365 for Thor.Admin only
+    (it reads the whole SharePoint site with an app-only Graph token, and re-checks the role)."""
+    urls = [f"{portal_api_url()}/mcp"]
+    m365 = os.environ.get("M365_MCP_URL")
+    if m365 and user.is_thor_admin:
+        urls.append(m365)
+    return urls
+
+
+@asynccontextmanager
+async def tools_for(user: User):
+    """Async context manager yielding this user's tools from every source. Overridden in tests."""
+    async with AsyncExitStack() as stack:
+        tools: list = []
+        for url in tool_sources(user):
+            tools += await stack.enter_async_context(mcp_tools(url, user.token))
+        yield tools
 
 
 def get_tools_provider():
@@ -129,7 +145,7 @@ async def chat(
             "conversation", {"id": str(conversation_id), "sources": [source_dict(h) for h in hits]}
         )
         try:
-            async with tools_provider(user.token) as tools:
+            async with tools_provider(user) as tools:
                 async for event, data in run_turn(client, request, tools, hits):
                     if event != "done":
                         yield sse(event, data)

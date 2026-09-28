@@ -1,0 +1,27 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(driveItem)",
+  "value": [
+    {
+      "id": "014LKTFRKN6FABEKZCENDKPNK5RGCBINM7",
+      "lastModifiedDateTime": "2026-09-28T16:51:01Z",
+      "name": "sb-2026-11-awning-motor.md",
+      "parentReference": {
+        "driveType": "documentLibrary",
+        "driveId": "b!agemyV2spEyc7NQnza-3L2e2U4DRoExButL3TNAZA-pJYTKt8ZajSIsWsdSbuiI0",
+        "id": "014LKTFRN6Y2GOVW7725BZO354PWSELRRZ",
+        "name": "Shared Documents",
+        "path": "/drives/b!agemyV2spEyc7NQnza-3L2e2U4DRoExButL3TNAZA-pJYTKt8ZajSIsWsdSbuiI0/root:",
+        "siteId": "c9a6076a-ac5d-4ca4-9cec-d427cdafb72f"
+      },
+      "webUrl": "https://contoso.sharepoint.com/sites/dealer-docs/Shared%20Documents/sb-2026-11-awning-motor.md",
+      "file": {
+        "fileExtension": ".md",
+        "hashes": {
+          "quickXorHash": "wYTbBH2vSGjZTNsR/r/qRk5g9dU="
+        },
+        "mimeType": "text/markdown"
+      },
+      "size": 1170
+    }
+  ]
+}

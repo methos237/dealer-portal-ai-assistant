@@ -1,0 +1,11 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#drives(id,name,webUrl,driveType)",
+  "value": [
+    {
+      "id": "b!agemyV2spEyc7NQnza-3L2e2U4DRoExButL3TNAZA-pJYTKt8ZajSIsWsdSbuiI0",
+      "name": "Documents",
+      "webUrl": "https://contoso.sharepoint.com/sites/dealer-docs/Shared%20Documents",
+      "driveType": "documentLibrary"
+    }
+  ]
+}

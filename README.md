@@ -138,6 +138,24 @@ The same portal tools are defined once in the API and served twice: to the in-ap
 
 One full pass of the three model-graded suites costs about 0.9 USD on `claude-opus-5` (most input tokens are prompt-cache reads). The retrieval suite is free and runs on every PR; the paid suites run on manual dispatch.
 
+## Microsoft 365
+
+Dealers' documents already live in SharePoint. Two pieces connect them: an MCP server that lets an assistant read a site's libraries live, and a timer Function that keeps the portal's retrieval index in step with one library.
+
+| Concern | How |
+|---|---|
+| Permissions model | One app registration, `dealer-portal-m365`, with application permissions `Sites.Read.All` and `Files.Read.All` (admin-consented). App-only, read-only: there is no write role to misuse, and no user has to grant anything. `scripts/entra-setup.sh` creates it |
+| `mcp-m365/` | TypeScript, `@modelcontextprotocol/sdk`, `@azure/identity` client credentials, plain `fetch` to Graph. Tools: `list_libraries`, `list_documents`, `get_document` (text from `.pdf` via `pdf-parse`, `.docx` via `mammoth`, Markdown and text as is), `search_documents` (drive search, one library or every library in the site) |
+| One server, two clients | The same `createServer()` runs over stdio for Claude Desktop and Claude Code (`docs/mcp-clients.md`) and over stateless streamable HTTP on :8100 for the assistant. The HTTP entry verifies the caller's `dealer-portal-api` token (issuer, audience, `Thor.Admin` role by default) before it opens a transport: the Graph credential is app-wide, so the portal identity gates who may use it |
+| Assistant | `Thor.Admin` conversations get mcp-m365 as a second tool source next to the api's `/mcp` (`M365_MCP_URL`); the same translation to strict Anthropic tools, the same user token forwarded. Dealer roles never see these tools |
+| `functions/` | Python Azure Function, timer every 15 minutes. Graph delta query on the configured library (`M365_SITE`, `M365_LIBRARY`), stored delta link per drive in `rag.m365_sync`. Changed `.md`/`.pdf` files are downloaded and indexed through the assistant's `rag` package (same chunking, same embedder selection, content hash skips unchanged files); deleted items drop their chunks by Graph item id. Other file types are ignored |
+| Tests | mcp-m365: Vitest over Graph JSON fixtures and an in-memory MCP client (tool list, each tool, HTTP auth rejection). Sync: pytest against Postgres with a scripted Graph (full walk, then a delta with an edit and a delete) |
+
+```bash
+make m365        # mcp-m365 on :8100 (needs M365_* in .env)
+make functions   # one sync round without the Functions host; `cd functions && func start` runs the timer
+```
+
 ## Prerequisites
 
 | Tool | Version | Used by |
@@ -154,7 +172,7 @@ An Azure subscription and an Entra ID tenant are needed for sign-in and deployme
 ## Running locally
 
 ```bash
-make setup     # once: copies .env.example to .env, installs web, api and assistant dependencies
+make setup     # once: copies .env.example to .env, installs web, api, assistant, mcp-m365 and functions dependencies
 make dev       # Postgres + pgvector on 5434, then web :3000, api :5080, assistant :8000 (Ctrl-C stops all)
 make migrate   # applies assistant/migrations to the rag schema
 make ingest    # indexes assistant/fixtures/docs (first run downloads the 33 MB embedding model)
@@ -171,7 +189,7 @@ Azure and Entra setup, once per subscription:
 ```bash
 az login
 az deployment sub create --location eastus2 --template-file infra/main.bicep   # resource group + document storage
-scripts/entra-setup.sh                    # app registrations, roles, test users; prints .env lines
+scripts/entra-setup.sh                    # app registrations (web, api, m365), roles, test users; prints .env lines
 ```
 
 ## Deliberately out of scope

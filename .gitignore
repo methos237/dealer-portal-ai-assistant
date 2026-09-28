@@ -45,3 +45,6 @@ infra/**/*.json
 .vscode/
 web/next-env.d.ts
 :memory:.ses
+
+# mcp-m365 build output
+mcp-m365/dist/

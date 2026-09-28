@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "DATABASE_URL": "postgresql://postgres:postgres@localhost:5434/dealer_portal",
+    "M365_TENANT_ID": "",
+    "M365_CLIENT_ID": "",
+    "M365_CLIENT_SECRET": "",
+    "M365_SITE": "yourtenant.sharepoint.com:/sites/dealer-docs",
+    "M365_LIBRARY": "Documents"
+  }
+}
