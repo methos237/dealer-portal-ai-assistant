@@ -25,7 +25,12 @@ var app = builder.Build();
 if (app.Configuration.GetValue<bool>("Database:MigrateOnStart"))
 {
     using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<PortalDbContext>().Database.MigrateAsync();
+    var db = scope.ServiceProvider.GetRequiredService<PortalDbContext>();
+    await db.Database.MigrateAsync();
+    if (app.Configuration.GetValue<bool>("Database:SeedOnStart"))
+    {
+        await SeedData.ApplyIfEmptyAsync(db);
+    }
 }
 
 app.UseStatusCodePages();   // 401/403 from the auth middleware become RFC 9457 problem details
