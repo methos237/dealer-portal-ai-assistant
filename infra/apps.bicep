@@ -23,7 +23,9 @@ resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: 'plan-dealer-portal'
   location: location
   kind: 'linux'
-  sku: { name: 'B1', tier: 'Basic' }
+  // B1 (1 core, 1.75 GB) sat at 90 % CPU with the three containers and restart-looped the api; B2 is the
+  // smallest size that holds them.
+  sku: { name: 'B2', tier: 'Basic' }
   properties: { reserved: true }
 }
 

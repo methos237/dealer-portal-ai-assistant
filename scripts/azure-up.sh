@@ -6,7 +6,7 @@
 #
 # Requires: az login, docker images published to ghcr.io/methos237 (CI does this on master),
 # Entra apps from scripts/entra-setup.sh, deploy identity from scripts/azure-oidc-setup.sh (for CI only).
-# Cost while up: about 0.04 USD per hour (App Service B1 + Postgres B1ms). scripts/azure-down.sh removes it.
+# Cost while up: about 0.07 USD per hour (App Service B2 + Postgres B1ms). scripts/azure-down.sh removes it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 set -a; . ./.env; set +a
