@@ -67,6 +67,40 @@ The web app is an installable PWA. A claim drafted while offline is stored in In
 
 ![Claims](docs/screenshots/claims.png)
 
+## The assistant
+
+Retrieval-augmented answers with real citations, streamed to the browser.
+
+| Step | How |
+|---|---|
+| Documents | Synthetic owner manuals and service bulletins under `assistant/fixtures/docs` (Markdown, plus PDFs rendered from three of them). One bulletin carries a prompt-injection payload for the evaluation suite |
+| Chunking | Split on Markdown headings, keep the heading path as context, then ~800-token windows with 100-token overlap (token count approximated as words × 1.3). PDFs are windowed per page with the page number kept |
+| Embeddings | Chosen by environment. Default `fastembed` (`BAAI/bge-small-en-v1.5`, 384 dims, ONNX, offline, free) for local dev, tests and the PR eval. Azure OpenAI `text-embedding-3-small` (1536 dims) when `AZURE_OPENAI_ENDPOINT` is set, for the Azure deployment. The vector column dimension is fixed at migration time from the configured provider and the app refuses to start against a mismatched index |
+| Retrieval | Hybrid: `ts_rank_cd` over a stored `tsvector` (top 20) plus cosine over an HNSW index (top 20), fused by reciprocal rank, six chunks to the model. Dealer-scoped documents are filtered in SQL |
+| Answer | Chunks go to Claude as `document` blocks with `citations` enabled after a cached system prompt (`claude-opus-5`, adaptive thinking, effort medium, streaming). The API returns citation spans that point at the exact chunk; the UI renders them as chips that open the source. No "write [1] footnotes" prompting |
+| Streaming | `POST /chat` emits SSE events `conversation`, `text`, `citation`, `done` (stop reason and token usage, including cache reads) and `error`. Refusals and `max_tokens` are surfaced, not hidden |
+| Tenancy | The web app forwards the user's API token; the assistant validates it and asks the portal API which dealer the caller belongs to |
+| Spend guards | Startup fails without model credentials; each conversation has a token budget (`MAX_TOKENS_PER_CONVERSATION`); tests use a fake client and recorded cassettes; the optional `local-llm` compose profile (LiteLLM + Ollama) covers plumbing work for free |
+
+Cache verification: the second turn of a conversation reports `cache_read_input_tokens > 0` in the `done` event; a live test asserts it.
+
+### Evaluation
+
+`assistant/evals/cases.yaml` holds the cases; `uv run evals --suite retrieval` runs the free suite and exits non-zero under threshold. Results land in `assistant/evals/out/`.
+
+| Suite | Grader | Threshold | Runs |
+|---|---|---|---|
+| retrieval (30 cases) | programmatic: recall@5 and MRR against the expected document and heading | recall@5 ≥ 0.90 | every PR touching `assistant/`, local embedder, no secrets |
+| answer, tool, injection | LLM judge (Phase 3) | faithfulness ≥ 4.2, tool exact match ≥ 0.90, injection 100% | `master`, manual dispatch, PRs labeled `eval` |
+
+Current retrieval result on the fixtures:
+
+```
+retrieval: 30 cases, recall@5 1.00, MRR 0.95
+```
+
+What each trigger costs: the retrieval suite is free (CPU embedder). The LLM-graded suites spend API tokens; the judge cache under `assistant/evals/cache/` makes reruns of unchanged answers free.
+
 ## Prerequisites
 
 | Tool | Version | Used by |
@@ -86,10 +120,12 @@ An Azure subscription and an Entra ID tenant are needed for sign-in and deployme
 make setup     # once: copies .env.example to .env, installs web, api and assistant dependencies
 make dev       # Postgres + pgvector on 5434, then web :3000, api :5080, assistant :8000 (Ctrl-C stops all)
 make migrate   # applies assistant/migrations to the rag schema
+make ingest    # indexes assistant/fixtures/docs (first run downloads the 33 MB embedding model)
+make evals     # retrieval eval against the indexed fixtures
 make check     # every check CI runs
 ```
 
-Fill `.env` with the Azure and Entra values below before `make dev`. The API applies EF Core migrations on start and, when the database is empty, `docker/postgres/seed.sql` (3 dealers, 20 units, 30 claims, 15 parts orders). Sign in with one of the test users created by `scripts/entra-setup.sh` (one per role).
+Fill `.env` with the Azure and Entra values below plus `ANTHROPIC_API_KEY` before `make dev`. For plumbing work without API spend: `docker compose --profile local-llm up -d` and set `ANTHROPIC_BASE_URL=http://localhost:4000`, `ANTHROPIC_API_KEY=local` (needs Ollama with `qwen3` on the host). The API applies EF Core migrations on start and, when the database is empty, `docker/postgres/seed.sql` (3 dealers, 20 units, 30 claims, 15 parts orders). Sign in with one of the test users created by `scripts/entra-setup.sh` (one per role).
 
 Health checks: `web/health`, `api/health`, `assistant/health`.
 
