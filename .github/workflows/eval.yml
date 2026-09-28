@@ -1,0 +1,62 @@
+name: eval
+
+on:
+  pull_request:
+    paths: ["assistant/**", ".github/workflows/eval.yml"]
+  push:
+    branches: [master]
+    paths: ["assistant/**", ".github/workflows/eval.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Free: local embedder, no secrets. Runs on every PR that touches the assistant.
+  retrieval:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dealer_portal
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dealer_portal
+      FASTEMBED_CACHE_PATH: /home/runner/.cache/fastembed
+    defaults:
+      run:
+        working-directory: assistant
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: assistant/uv.lock
+      - uses: actions/cache@v4
+        with:
+          path: /home/runner/.cache/fastembed
+          key: fastembed-bge-small-en-v1.5
+      - run: uv sync --locked
+      - run: psql "$DATABASE_URL" -c "CREATE EXTENSION IF NOT EXISTS vector"
+      - run: uv run python -m rag.migrate
+      - run: uv run python -m rag.ingest fixtures/docs
+      - name: Retrieval suite
+        run: |
+          uv run evals --suite retrieval | tee eval.txt
+          { echo '## Retrieval eval'; echo; echo '```'; cat eval.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: assistant/evals/out/*.json
+
+  # Paid: LLM-graded suites. master, manual dispatch, or a PR labeled `eval`. Lands in Phase 3.
+  full:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'eval')
+    needs: retrieval
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "answer, tool and injection suites arrive with the Phase 3 judge; nothing to run yet."
