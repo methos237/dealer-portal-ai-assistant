@@ -3,9 +3,9 @@ name: assistant
 on:
   push:
     branches: [master]
-    paths: ["assistant/**", ".github/workflows/assistant.yml"]
+    paths: ["assistant/**", "functions/**", ".github/workflows/assistant.yml"]
   pull_request:
-    paths: ["assistant/**", ".github/workflows/assistant.yml"]
+    paths: ["assistant/**", "functions/**", ".github/workflows/assistant.yml"]
 
 concurrency:
   group: assistant-${{ github.ref }}
@@ -33,3 +33,18 @@ jobs:
       - run: uv run ruff format --check
       - run: uv run ruff check
       - run: uv run pytest -q -m "not live"
+  functions:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: functions/uv.lock
+      - run: uv sync --locked
+      - run: uv run ruff format --check
+      - run: uv run ruff check
+      - run: uv run python -c "import function_app"
