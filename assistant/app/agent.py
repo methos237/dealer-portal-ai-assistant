@@ -97,14 +97,48 @@ def build_request(history: list[dict], question: str, hits: list[Hit]) -> dict[s
     }
 
 
+UNSUPPORTED_IN_STRICT = {
+    "minimum",
+    "maximum",
+    "multipleOf",
+    "minLength",
+    "maxLength",
+    "pattern",
+    "minItems",
+    "maxItems",
+    "default",
+}
+
+
 def _strict(schema: dict) -> dict:
-    """additionalProperties: false on every object so the definition can be strict."""
+    """Make a schema acceptable for strict tool use.
+
+    additionalProperties: false on every object; numeric and string constraints the API rejects are
+    dropped (the api still validates them on the call).
+    """
+    schema = {k: v for k, v in schema.items() if k not in UNSUPPORTED_IN_STRICT}
+    if isinstance(schema.get("type"), list):
+        # ["string", "null"] with an enum is rejected; express nullability as anyOf instead.
+        types = [t for t in schema["type"] if t != "null"]
+        branch = {k: v for k, v in schema.items() if k not in {"type", "description"}}
+        if "enum" in branch:
+            branch["enum"] = [v for v in branch["enum"] if v is not None]
+        options = [_strict({**branch, "type": t}) for t in types]
+        if "null" in schema["type"]:
+            options.append({"type": "null"})
+        out = {"anyOf": options}
+        if "description" in schema:
+            out["description"] = schema["description"]
+        return out
     if schema.get("type") == "object":
-        schema = {**schema, "additionalProperties": False}
+        schema["additionalProperties"] = False
         if "properties" in schema:
             schema["properties"] = {k: _strict(v) for k, v in schema["properties"].items()}
-    if "items" in schema and isinstance(schema["items"], dict):
-        schema = {**schema, "items": _strict(schema["items"])}
+    if isinstance(schema.get("items"), dict):
+        schema["items"] = _strict(schema["items"])
+    for key in ("anyOf", "oneOf", "allOf"):
+        if isinstance(schema.get(key), list):
+            schema[key] = [_strict(v) if isinstance(v, dict) else v for v in schema[key]]
     return schema
 
 

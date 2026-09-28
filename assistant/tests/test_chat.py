@@ -179,9 +179,22 @@ def test_strict_adds_additional_properties_false_recursively() -> None:
             }
         },
     }
+    schema["properties"]["lines"]["items"]["properties"]["quantity"] = {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10000,
+    }
     out = _strict(schema)
     assert out["additionalProperties"] is False
     assert out["properties"]["lines"]["items"]["additionalProperties"] is False
+    assert out["properties"]["lines"]["items"]["properties"]["quantity"] == {"type": "integer"}
+    nullable = _strict(
+        {"type": ["string", "null"], "enum": ["Open", None], "default": None, "description": "d"}
+    )
+    assert nullable == {
+        "anyOf": [{"type": "string", "enum": ["Open"]}, {"type": "null"}],
+        "description": "d",
+    }
 
 
 def test_sse_framing() -> None:
