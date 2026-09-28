@@ -9,6 +9,7 @@ const links = [
   { href: "/claims", label: "Claims" },
   { href: "/parts-orders", label: "Parts orders" },
   { href: "/documents", label: "Documents" },
+  { href: "/assistant", label: "Assistant" },
 ];
 
 export default async function PortalLayout({
