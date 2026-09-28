@@ -122,3 +122,60 @@ public class McpTests(PortalFixture fx) : IClassFixture<PortalFixture>
         Assert.Contains("NOPE-1", rpc.ToJsonString());
     }
 }
+
+public class McpContractTests(PortalFixture fx) : IClassFixture<PortalFixture>
+{
+    const string ThorAdmin = "2bede04d-e740-4fc5-a78f-fb050fb69127";
+
+    /// <summary>
+    /// The assistant's tool eval runs against this snapshot of tools/list (as Thor.Admin, every tool),
+    /// so the eval never needs a token. Set UPDATE_SNAPSHOTS=1 to rewrite it after changing a tool.
+    /// </summary>
+    [Fact]
+    public async Task Tools_list_matches_the_assistant_eval_fixture()
+    {
+        var req = new HttpRequestMessage(HttpMethod.Post, "/mcp")
+        {
+            Content = JsonContent.Create(new { jsonrpc = "2.0", id = 1, method = "tools/list", @params = new { } }),
+        };
+        req.Headers.Accept.ParseAdd("application/json");
+        req.Headers.Accept.ParseAdd("text/event-stream");
+        var res = await fx.ClientAs(ThorAdmin, "Thor.Admin").SendAsync(req);
+        var body = await res.Content.ReadAsStringAsync();
+        if (res.Content.Headers.ContentType?.MediaType == "text/event-stream")
+        {
+            body = string.Join("", body.Split('\n').Where(l => l.StartsWith("data:")).Select(l => l[5..].Trim()));
+        }
+
+        var tools = JsonNode.Parse(body)!["result"]!["tools"]!.AsArray()
+            .OrderBy(t => t!["name"]!.GetValue<string>())
+            .Select(t => new JsonObject
+            {
+                ["name"] = t!["name"]!.DeepClone(),
+                ["description"] = t["description"]!.DeepClone(),
+                ["inputSchema"] = t["inputSchema"]!.DeepClone(),
+            });
+        var rendered = new JsonArray([.. tools]).ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n";
+
+        var path = FindRepoFile(Path.Combine("assistant", "evals", "fixtures", "tools.json"));
+        if (Environment.GetEnvironmentVariable("UPDATE_SNAPSHOTS") is not null || !File.Exists(path))
+        {
+            await File.WriteAllTextAsync(path, rendered);
+        }
+
+        Assert.Equal(await File.ReadAllTextAsync(path), rendered);
+    }
+
+    static string FindRepoFile(string relative)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (Directory.Exists(Path.Combine(dir.FullName, "assistant")) && Directory.Exists(Path.Combine(dir.FullName, "api")))
+            {
+                return Path.Combine(dir.FullName, relative);
+            }
+        }
+
+        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
+    }
+}

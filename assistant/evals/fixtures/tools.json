@@ -1,0 +1,183 @@
+[
+  {
+    "name": "approve_claim",
+    "description": "Prepare the approval of a claim that is pending approval. Thor.Admin only. Returns a draft; the approval happens when the user confirms.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Claim id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "check_warranty",
+    "description": "Whether a unit is within the 36-month warranty and how many months remain.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "vin": {
+          "description": "Full 17-character VIN",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vin"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "draft_claim",
+    "description": "Prepare a warranty claim for the user to confirm. Validates the unit and warranty window and returns a draft; nothing is saved until the user confirms in the portal.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "vin": {
+          "description": "Full 17-character VIN",
+          "type": "string"
+        },
+        "description": {
+          "description": "What failed and what was done, 5 to 2000 characters",
+          "type": "string"
+        },
+        "amount": {
+          "description": "Claim amount in USD, up to two decimals",
+          "type": "number"
+        }
+      },
+      "required": [
+        "vin",
+        "description",
+        "amount"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "draft_parts_order",
+    "description": "Prepare a parts order for the user to confirm. Validates SKUs against the catalog and returns a draft with line prices; nothing is ordered until the user confirms.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "lines": {
+          "description": "Lines to order",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sku": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "quantity": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              }
+            },
+            "required": [
+              "sku",
+              "quantity"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "vin": {
+          "description": "Optional VIN the parts are for",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "lines"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_claim",
+    "description": "Get one warranty claim by id.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Claim id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_unit",
+    "description": "Look up one unit by VIN: model, delivery date and warranty status.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "vin": {
+          "description": "Full 17-character VIN",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vin"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list_claims",
+    "description": "List warranty claims, newest first, optionally filtered by status (Open, PendingApproval, Approved, Rejected).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "description": "Optional status filter",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "Open",
+            "PendingApproval",
+            "Approved",
+            "Rejected",
+            null
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "search_units",
+    "description": "Search units by VIN fragment or model name. Returns up to 20.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "description": "Text to match against VIN or model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  }
+]
