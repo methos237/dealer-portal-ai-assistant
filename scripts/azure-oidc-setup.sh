@@ -36,8 +36,15 @@ ensure_fic() {  # name subject
       \"subject\": \"$2\", \"audiences\": [\"api://AzureADTokenExchange\"]}" -o none
   fi
 }
+# GitHub issues subjects in two forms: plain, and with owner/repo ids appended (the default since 2026,
+# e.g. repo:owner@123/name@456:pull_request). Register both so either matches.
+REPO_ID=$(gh api "repos/$REPO" --jq .id)
+OWNER_ID=$(gh api "repos/$REPO" --jq .owner.id)
+REPO_WITH_IDS="${REPO%%/*}@$OWNER_ID/${REPO##*/}@$REPO_ID"
 ensure_fic github-master "repo:$REPO:ref:refs/heads/master"
 ensure_fic github-pull-request "repo:$REPO:pull_request"
+ensure_fic github-master-ids "repo:$REPO_WITH_IDS:ref:refs/heads/master"
+ensure_fic github-pull-request-ids "repo:$REPO_WITH_IDS:pull_request"
 
 SCOPE="/subscriptions/$SUB_ID/resourceGroups/$RG"
 for role in "Contributor" "Role Based Access Control Administrator"; do
