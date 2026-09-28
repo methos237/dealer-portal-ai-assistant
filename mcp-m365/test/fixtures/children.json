@@ -1,0 +1,47 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#drives('b%21Zt5')/root/children(id,name,size,lastModifiedDateTime,webUrl,file,folder,parentReference)",
+  "value": [
+    {
+      "id": "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36K",
+      "name": "2026",
+      "size": 48123,
+      "lastModifiedDateTime": "2026-09-20T14:02:11Z",
+      "webUrl": "https://contoso.sharepoint.com/sites/dealer-docs/Service%20Bulletins/2026",
+      "folder": { "childCount": 3 },
+      "parentReference": {
+        "driveId": "b!Zt5NqK3yQ0e5sJ1WcXh4kA7Qz1FjP2xKmN8sT3vBcDe0123456789abcdefghijk",
+        "path": "/drive/root:"
+      }
+    },
+    {
+      "id": "01BYE5RZ4TVGN3KGXQ2FBLHU6E4WCQDWGG",
+      "name": "sb-2026-11-awning-motor.md",
+      "size": 2311,
+      "lastModifiedDateTime": "2026-09-27T09:15:40Z",
+      "webUrl": "https://contoso.sharepoint.com/sites/dealer-docs/Service%20Bulletins/sb-2026-11-awning-motor.md",
+      "file": {
+        "mimeType": "text/markdown",
+        "hashes": { "quickXorHash": "Q3T2x0sA9hVn5P8l1eR6bYw+cA0=" }
+      },
+      "parentReference": {
+        "driveId": "b!Zt5NqK3yQ0e5sJ1WcXh4kA7Qz1FjP2xKmN8sT3vBcDe0123456789abcdefghijk",
+        "path": "/drive/root:"
+      }
+    },
+    {
+      "id": "01BYE5RZ2BEKQEYHUZXVDKLPCNMYXWMBXO",
+      "name": "sb-2026-10-roof-sealant.pdf",
+      "size": 184220,
+      "lastModifiedDateTime": "2026-09-25T16:48:03Z",
+      "webUrl": "https://contoso.sharepoint.com/sites/dealer-docs/Service%20Bulletins/sb-2026-10-roof-sealant.pdf",
+      "file": {
+        "mimeType": "application/pdf",
+        "hashes": { "quickXorHash": "9kLm2nOpQrStUvWxYz0123456789ab=" }
+      },
+      "parentReference": {
+        "driveId": "b!Zt5NqK3yQ0e5sJ1WcXh4kA7Qz1FjP2xKmN8sT3vBcDe0123456789abcdefghijk",
+        "path": "/drive/root:"
+      }
+    }
+  ]
+}
