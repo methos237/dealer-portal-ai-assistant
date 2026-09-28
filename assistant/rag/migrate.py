@@ -3,11 +3,12 @@
 Usage: DATABASE_URL=postgresql://... uv run python -m rag.migrate
 """
 
-import os
-import sys
 from pathlib import Path
+from string import Template
 
 import psycopg
+
+from rag.settings import database_url, embedding_dim, embedding_provider
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 
@@ -27,15 +28,16 @@ def migrate(dsn: str, migrations_dir: Path = MIGRATIONS_DIR) -> list[str]:
             if path.name in done:
                 continue
             with conn.transaction():
-                conn.execute(path.read_text())
+                conn.execute(
+                    Template(path.read_text()).safe_substitute(
+                        EMBEDDING_DIM=embedding_dim(), EMBEDDING_PROVIDER=embedding_provider()
+                    )
+                )
                 conn.execute("INSERT INTO rag.schema_migrations (name) VALUES (%s)", (path.name,))
             applied.append(path.name)
     return applied
 
 
 if __name__ == "__main__":
-    dsn = os.environ.get("DATABASE_URL")
-    if not dsn:
-        sys.exit("DATABASE_URL is not set")
-    for name in migrate(dsn):
+    for name in migrate(database_url()):
         print("applied", name)
