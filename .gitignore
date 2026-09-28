@@ -1,0 +1,43 @@
+# Local AI context
+CLAUDE.md
+.claude/
+.aidocs/
+.remember/
+supertool
+
+# Secrets
+.env
+.env.*
+!.env.example
+local.settings.json
+
+# Node
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# .NET
+bin/
+obj/
+*.user
+TestResults/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+assistant/evals/out/
+
+# Azure / Bicep
+*.azcli
+infra/**/*.json
+!infra/**/*.parameters.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
