@@ -1,0 +1,136 @@
+name: deploy
+
+# Runs after images.yml has pushed the master images, so App Service pulls a tag that exists.
+on:
+  workflow_run:
+    workflows: [images]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+jobs:
+  infra:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      webUrl: ${{ steps.deploy.outputs.webUrl }}
+      apiUrl: ${{ steps.deploy.outputs.apiUrl }}
+      assistantUrl: ${{ steps.deploy.outputs.assistantUrl }}
+      postgresHost: ${{ steps.deploy.outputs.postgresHost }}
+      keyVaultName: ${{ steps.deploy.outputs.keyVaultName }}
+      openAiEndpoint: ${{ steps.deploy.outputs.openAiEndpoint }}
+      functionAppName: ${{ steps.deploy.outputs.functionAppName }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy Bicep
+        id: deploy
+        run: |
+          az group create -n "$RG" -l eastus2 -o none
+          az deployment group create -g "$RG" -n dealer-portal --template-file infra/main.bicep \
+            --parameters infra/dev.parameters.json \
+            --parameters imageTag="${{ github.event.workflow_run.head_sha || github.sha }}" \
+              webClientId="${{ vars.WEB_CLIENT_ID }}" entraApiScope="${{ vars.ENTRA_API_SCOPE }}" \
+              m365Site="${{ vars.M365_SITE }}" budgetEmail="${{ vars.BUDGET_EMAIL }}" \
+              postgresAdminPassword="${{ secrets.POSTGRES_PASSWORD }}" \
+              webClientSecret="${{ secrets.WEB_CLIENT_SECRET }}" authSecret="${{ secrets.AUTH_SECRET }}" \
+              anthropicApiKey="${{ secrets.ANTHROPIC_API_KEY }}" m365ClientSecret="${{ secrets.M365_CLIENT_SECRET }}" \
+            --query properties.outputs -o json > outputs.json
+          for k in webUrl apiUrl assistantUrl postgresHost keyVaultName openAiEndpoint functionAppName; do
+            echo "$k=$(jq -r ".$k.value" outputs.json)" >> "$GITHUB_OUTPUT"
+          done
+
+  database:
+    needs: infra
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: assistant
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: astral-sh/setup-uv@v7
+      - name: Open the firewall for this runner
+        run: |
+          IP=$(curl -s https://api.ipify.org)
+          SERVER=${{ needs.infra.outputs.postgresHost }}; SERVER=${SERVER%%.*}
+          az postgres flexible-server firewall-rule create -g "$RG" -n "$SERVER" -r github-runner \
+            --start-ip-address "$IP" --end-ip-address "$IP" -o none
+      - name: rag.migrate and rag.ingest (Azure OpenAI embeddings)
+        env:
+          DATABASE_URL: postgresql://portal:${{ secrets.POSTGRES_PASSWORD }}@${{ needs.infra.outputs.postgresHost }}:5432/dealer_portal?sslmode=require
+          AZURE_OPENAI_ENDPOINT: ${{ needs.infra.outputs.openAiEndpoint }}
+          AZURE_OPENAI_EMBEDDING_DEPLOYMENT: text-embedding-3-small
+        run: |
+          export AZURE_OPENAI_API_KEY=$(az keyvault secret show --vault-name ${{ needs.infra.outputs.keyVaultName }} -n openai-api-key --query value -o tsv)
+          uv sync --locked
+          uv run python -c "import psycopg,os; c=psycopg.connect(os.environ['DATABASE_URL']); c.execute('CREATE EXTENSION IF NOT EXISTS vector'); c.commit()"
+          uv run python -m rag.migrate
+          uv run python -m rag.ingest fixtures/docs
+      - name: Close the firewall
+        if: always()
+        run: |
+          SERVER=${{ needs.infra.outputs.postgresHost }}; SERVER=${SERVER%%.*}
+          az postgres flexible-server firewall-rule delete -g "$RG" -n "$SERVER" -r github-runner -y -o none
+
+  functions:
+    needs: infra
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: astral-sh/setup-uv@v7
+      - name: Package (assistant's rag package vendored next to function_app.py)
+        working-directory: functions
+        run: |
+          uv export --no-dev --no-hashes --no-emit-project --no-emit-package assistant -o requirements.txt
+          cp -r ../assistant/rag ../assistant/migrations .
+          zip -qr ../functions.zip . -x '.venv/*' '__pycache__/*' 'uv.lock' 'pyproject.toml' '.gitignore' 'local.settings.json*'
+      - run: az functionapp deployment source config-zip -g "$RG" -n ${{ needs.infra.outputs.functionAppName }} --src functions.zip -o none
+
+  restart:
+    needs: [infra, database]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Restart apps so Key Vault references and the new image tag take effect
+        run: |
+          for app in app-dealer-portal-api app-dealer-portal-assistant app-dealer-portal-web; do
+            az webapp restart -g "$RG" -n "$app" -o none
+          done
+      - name: Health
+        run: |
+          for url in ${{ needs.infra.outputs.apiUrl }} ${{ needs.infra.outputs.assistantUrl }} ${{ needs.infra.outputs.webUrl }}; do
+            for i in $(seq 1 30); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "$url/health") && [ "$code" = 200 ] && break
+              sleep 10
+            done
+            echo "$url/health -> $code"; [ "$code" = 200 ]
+          done
