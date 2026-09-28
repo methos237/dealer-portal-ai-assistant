@@ -2,7 +2,7 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "postgresLocation": { "value": "centralus" },
+    "computeLocation": { "value": "centralus" },
     "imageRegistry": { "value": "ghcr.io/methos237" },
     "imageTag": { "value": "latest" },
     "entraTenantId": { "value": "2acd956a-b174-4211-8f74-12b183c6b3d3" },

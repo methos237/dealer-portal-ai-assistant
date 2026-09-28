@@ -2,8 +2,8 @@
 // identity needs rights on one resource group only.
 @description('Azure region for every resource except Postgres.')
 param location string = resourceGroup().location
-@description('Postgres Flexible Server region. New subscriptions are often refused Burstable capacity in eastus/eastus2; centralus accepts it.')
-param postgresLocation string = 'centralus'
+@description('Region for Postgres and the App Service plan. This free-trial subscription has no capacity for either in eastus2; centralus accepts B1 and B1ms.')
+param computeLocation string = 'centralus'
 @description('Container registry namespace the App Service images are pulled from.')
 param imageRegistry string = 'ghcr.io/methos237'
 param imageTag string = 'latest'
@@ -44,7 +44,7 @@ module monitoring 'monitoring.bicep' = {
 
 module postgres 'postgres.bicep' = {
   name: 'postgres'
-  params: { location: postgresLocation, adminPassword: postgresAdminPassword }
+  params: { location: computeLocation, adminPassword: postgresAdminPassword }
 }
 
 module openai 'openai.bicep' = {
@@ -70,7 +70,7 @@ module keyvault 'keyvault.bicep' = {
 module apps 'apps.bicep' = {
   name: 'apps'
   params: {
-    location: location
+    location: computeLocation
     imageRegistry: imageRegistry
     imageTag: imageTag
     appInsightsConnectionString: monitoring.outputs.connectionString
