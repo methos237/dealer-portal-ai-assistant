@@ -48,7 +48,7 @@ resource func 'Microsoft.Web/sites@2024-04-01' = {
           authentication: { type: 'SystemAssignedIdentity' }
         }
       }
-      runtime: { name: 'python', version: '3.12' }
+      runtime: { name: 'python', version: '3.13' }
       scaleAndConcurrency: { maximumInstanceCount: 40, instanceMemoryMB: 2048 }
     }
     siteConfig: {
