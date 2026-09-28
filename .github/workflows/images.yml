@@ -1,0 +1,65 @@
+name: images
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "web/**"
+      - "api/**"
+      - "assistant/**"
+      - "mcp-m365/**"
+      - "docker/**"
+      - ".github/workflows/images.yml"
+  pull_request:
+    paths:
+      - "**/Dockerfile"
+      - ".dockerignore"
+      - "**/.dockerignore"
+      - ".github/workflows/images.yml"
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: web
+            context: web
+            file: web/Dockerfile
+          - name: api
+            context: .
+            file: api/Dockerfile
+          - name: assistant
+            context: assistant
+            file: assistant/Dockerfile
+          - name: mcp-m365
+            context: mcp-m365
+            file: mcp-m365/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        if: github.event_name == 'push'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/dealer-portal-${{ matrix.name }}:latest
+            ghcr.io/${{ github.repository_owner }}/dealer-portal-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max

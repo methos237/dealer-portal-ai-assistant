@@ -1,5 +1,5 @@
 # Local development. `make dev` starts Postgres and the three dev servers; Ctrl-C stops them.
-.PHONY: dev up down setup api web assistant m365 functions migrate ingest evals check
+.PHONY: dev up down full setup api web assistant m365 functions migrate ingest evals check
 
 ENV_FILE := $(CURDIR)/.env
 
@@ -10,7 +10,11 @@ up:
 	docker compose up -d --wait
 
 down:
-	docker compose down
+	docker compose --profile full down
+
+## Run the built images (what CI pushes to GHCR and Azure runs) instead of the dev servers
+full:
+	docker compose --profile full up --build --wait
 
 ## One-time: install dependencies and point web at the root .env
 setup:

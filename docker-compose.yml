@@ -29,5 +29,55 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # `docker compose --profile full up --build`: the same images CI pushes to GHCR and Azure runs.
+  api:
+    build: { context: ., dockerfile: api/Dockerfile }
+    image: ghcr.io/methos237/dealer-portal-api
+    profiles: ["full"]
+    ports: ["5080:5080"]
+    env_file: .env
+    environment:
+      ConnectionStrings__Portal: Host=postgres;Port=5432;Database=dealer_portal;Username=postgres;Password=postgres
+      Database__MigrateOnStart: "true"
+      Database__SeedOnStart: "true"
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  assistant:
+    build: ./assistant
+    image: ghcr.io/methos237/dealer-portal-assistant
+    profiles: ["full"]
+    ports: ["8000:8000"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dealer_portal
+      PORTAL_API_URL: http://api:5080
+      M365_MCP_URL: http://mcp-m365:8100/mcp
+    volumes:
+      - fastembed:/cache
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  mcp-m365:
+    build: ./mcp-m365
+    image: ghcr.io/methos237/dealer-portal-mcp-m365
+    profiles: ["full"]
+    ports: ["8100:8100"]
+    env_file: .env
+
+  web:
+    build: ./web
+    image: ghcr.io/methos237/dealer-portal-web
+    profiles: ["full"]
+    ports: ["3000:3000"]
+    env_file: .env
+    environment:
+      PORTAL_API_URL: http://api:5080
+      ASSISTANT_URL: http://assistant:8000
+      AUTH_URL: http://localhost:3000
+      AUTH_TRUST_HOST: "true"
+    depends_on: [api, assistant]
+
 volumes:
   pgdata:
+  fastembed:
