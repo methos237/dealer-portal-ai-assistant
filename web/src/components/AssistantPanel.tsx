@@ -51,10 +51,9 @@ export function AssistantPanel() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
-  useEffect(
-    () => bottom.current?.scrollIntoView({ behavior: "smooth" }),
-    [messages],
-  );
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   async function open(id: string) {
     setConversationId(id);
