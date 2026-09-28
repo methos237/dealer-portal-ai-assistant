@@ -67,7 +67,7 @@ wheels = [
 [[package]]
 name = "assistant"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "fastapi", extra = ["standard"] },
@@ -84,7 +84,6 @@ dev = [
     { name = "httpx2" },
     { name = "pytest" },
     { name = "pytest-recording" },
-    { name = "pyyaml" },
     { name = "ruff" },
     { name = "testcontainers" },
 ]
@@ -106,7 +105,6 @@ dev = [
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-recording", specifier = ">=0.13.4" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "ruff", specifier = ">=0.16.9" },
     { name = "testcontainers", extras = ["postgres"], specifier = ">=4.15.0" },
 ]

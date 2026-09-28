@@ -1,0 +1,151 @@
+# Eval cases against assistant/fixtures/docs. Suites: retrieval (programmatic, every PR),
+# answer (LLM judge, Phase 3). expected.section matches the chunk's heading path, case-insensitive.
+cases:
+  # ---- retrieval: manuals
+  - id: aria-hitch-ball
+    suite: retrieval
+    question: What size hitch ball does the Aria need?
+    expected: [{doc: owner-manual-aria.md, section: Hitching and towing}]
+  - id: aria-tongue-weight
+    suite: retrieval
+    question: Target tongue weight range for a loaded Aria 28
+    expected: [{doc: owner-manual-aria.md, section: Hitching and towing}]
+  - id: aria-tire-pressure
+    suite: retrieval
+    question: Aria trailer tire size and cold pressure
+    expected: [{doc: owner-manual-aria.md}]
+  - id: aria-warranty-length
+    suite: retrieval
+    question: How long is the Aria warranty and when does it start?
+    expected: [{doc: owner-manual-aria.md, section: Warranty}]
+  - id: aria-warranty-exclusions
+    suite: retrieval
+    question: Are tires and the house battery covered under the Aria warranty?
+    expected: [{doc: owner-manual-aria.md, section: What is excluded}]
+  - id: aria-slide-seal-care
+    suite: retrieval
+    question: How often should slide-out seals be cleaned and what should never be used on them?
+    expected: [{doc: owner-manual-aria.md, section: Seal care}, {doc: owner-manual-summit.md, section: Slide-outs}]
+  - id: aria-converter-voltages
+    suite: retrieval
+    question: What voltages does the Aria converter output in bulk, absorption and float?
+    expected: [{doc: owner-manual-aria.md, section: Converter and inverter}]
+  - id: aria-battery-drain-storage
+    suite: retrieval
+    question: Why does the Aria battery go flat in storage and how long does it take?
+    expected: [{doc: owner-manual-aria.md, section: 12V system}]
+  - id: aria-awning-wind
+    suite: retrieval
+    question: At what wind speed must the awning be retracted?
+    expected: [{doc: owner-manual-aria.md, section: Awning}]
+  - id: aria-water-pump
+    suite: retrieval
+    question: Aria water pump flow rate and cutoff pressure
+    expected: [{doc: owner-manual-aria.md, section: Water system}]
+  - id: aria-maintenance-bearings
+    suite: retrieval
+    question: When do the Aria wheel bearings need repacking?
+    expected: [{doc: owner-manual-aria.md, section: Maintenance schedule}]
+  - id: summit-def-derate
+    suite: retrieval
+    question: What happens when the Summit runs out of DEF?
+    expected: [{doc: owner-manual-summit.md, section: Chassis and engine}]
+  - id: summit-jack-capacity
+    suite: retrieval
+    question: How much does each Summit leveling jack lift and what is its stroke?
+    expected: [{doc: owner-manual-summit.md, section: Leveling jacks}]
+  - id: summit-jack-bleed
+    suite: retrieval
+    question: Procedure to bleed the hydraulic leveling jacks
+    expected: [{doc: owner-manual-summit.md, section: Bleed procedure}]
+  - id: summit-roof-sealant
+    suite: retrieval
+    question: Which sealant goes on the Summit roof seams and what temperature limit applies?
+    expected: [{doc: owner-manual-summit.md, section: Roof}]
+  - id: summit-fridge-level
+    suite: retrieval
+    question: How level must the Summit refrigerator be to avoid damaging the cooling unit?
+    expected: [{doc: owner-manual-summit.md, section: Refrigerator}]
+  - id: summit-step-wont-retract
+    suite: retrieval
+    question: The entry step will not retract and the STEP OUT light is on. What should I check?
+    expected: [{doc: owner-manual-summit.md, section: Entry step}]
+  - id: summit-isolator-voltmeter
+    suite: retrieval
+    question: How do I check the battery isolator relay with a voltmeter?
+    expected: [{doc: owner-manual-summit.md, section: Battery isolator relay}, {doc: sb-2026-07-battery-isolator.md}]
+  - id: trailhead-tire-pressure-sand
+    suite: retrieval
+    question: Trailhead tire pressure for sand
+    expected: [{doc: owner-manual-trailhead.md, section: Off-road suspension}]
+  - id: trailhead-solar
+    suite: retrieval
+    question: Trailhead solar panel wattage and lithium battery capacity
+    expected: [{doc: owner-manual-trailhead.md, section: Solar and lithium battery}]
+  - id: trailhead-roof-rack
+    suite: retrieval
+    question: How much weight can the Trailhead roof rack carry?
+    expected: [{doc: owner-manual-trailhead.md, section: Roof rack load limits}]
+  # ---- retrieval: bulletins
+  - id: sb03-affected-units
+    suite: retrieval
+    question: Which Aria build dates are affected by the slide-out seal bulletin?
+    expected: [{doc: sb-2026-03-slide-out-seal.md, section: Affected units}]
+  - id: sb03-cure-time
+    suite: retrieval
+    question: How long must the slide seal adhesive cure before retracting the slide?
+    expected: [{doc: sb-2026-03-slide-out-seal.md, section: Repair procedure}]
+  - id: sb03-claim-codes
+    suite: retrieval
+    question: What failure code and operation codes are used for a slide seal replacement claim?
+    expected: [{doc: sb-2026-03-slide-out-seal.md, section: Warranty claim coding}]
+  - id: sb07-symptom
+    suite: retrieval
+    question: Chassis batteries drain overnight on a Summit. Is there a bulletin?
+    expected: [{doc: sb-2026-07-battery-isolator.md}, {doc: owner-manual-summit.md, section: Battery isolator relay}]
+  - id: sb07-labor
+    suite: retrieval
+    question: Labor allowance for replacing the battery isolator relay
+    expected: [{doc: sb-2026-07-battery-isolator.md, section: Labor allowance}]
+  - id: sb09-f1-fault
+    suite: retrieval
+    question: Furnace flashes F1 and shuts down after 30 seconds. What is the fix?
+    expected: [{doc: sb-2026-09-furnace-sail-switch.md}]
+  - id: sb09-f5-before-f1
+    suite: retrieval
+    question: Furnace shows F5 then F1. Which is the root cause?
+    expected: [{doc: sb-2026-09-furnace-sail-switch.md, section: Fault code list}, {doc: sb-2026-09-furnace-sail-switch.md, section: Diagnostic}]
+  - id: sb09-goodwill
+    suite: retrieval
+    question: Can the sail switch bulletin be applied to a unit outside the 36 month warranty?
+    expected: [{doc: sb-2026-09-furnace-sail-switch.md, section: Warranty claim coding}]
+  - id: sb09-sail-switch-pressure
+    suite: retrieval
+    question: Airflow pressure needed to close the original and revised sail switch
+    expected: [{doc: sb-2026-09-furnace-sail-switch.md, section: Condition}]
+  # ---- answer: graded by the faithfulness judge in Phase 3 (facts the answer must state)
+  - id: ans-aria-hitch-ball
+    suite: answer
+    question: What size hitch ball does the Aria need?
+    expected_facts: ["2-5/16 inch"]
+  - id: ans-aria-tongue-weight
+    suite: answer
+    question: What tongue weight should a loaded Aria 28 have?
+    expected_facts: ["10 to 12 percent", "920", "1,100"]
+  - id: ans-sb03-cure
+    suite: answer
+    question: How long does the slide seal adhesive cure before I can retract the slide?
+    expected_facts: ["4 hours", "60 degrees", "8 hours"]
+  - id: ans-sb09-f5
+    suite: answer
+    question: The furnace shows F5 and then F1. What should I do first?
+    expected_facts: ["battery", "12.4 volts"]
+  - id: ans-summit-def
+    suite: answer
+    question: What happens if the Summit runs out of DEF?
+    expected_facts: ["derate", "5 mph"]
+  - id: ans-not-in-docs
+    suite: answer
+    question: What is the towing capacity of a 2024 Ford F-250?
+    expected_facts: []
+    expect_abstain: true
