@@ -11,6 +11,10 @@ concurrency:
   group: infra-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -19,3 +23,25 @@ jobs:
       - run: az bicep install
       - run: az bicep lint --file infra/main.bicep
       - run: az bicep build --file infra/main.bicep --stdout > /dev/null
+
+  # Read-only preview of what a merge would change. Secure parameters get placeholders: what-if
+  # compares shape, not secret values.
+  what-if:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: |
+          az group create -n "${{ vars.AZURE_RESOURCE_GROUP }}" -l eastus2 -o none
+          az deployment group what-if -g "${{ vars.AZURE_RESOURCE_GROUP }}" --template-file infra/main.bicep \
+            --parameters infra/dev.parameters.json \
+            --parameters webClientId="${{ vars.WEB_CLIENT_ID }}" entraApiScope="${{ vars.ENTRA_API_SCOPE }}" \
+              m365Site="${{ vars.M365_SITE }}" budgetEmail="${{ vars.BUDGET_EMAIL }}" \
+              postgresAdminPassword=placeholder-Aa1! webClientSecret=placeholder authSecret=placeholder \
+              anthropicApiKey=placeholder m365ClientSecret=placeholder

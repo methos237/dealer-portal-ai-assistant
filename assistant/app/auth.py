@@ -58,7 +58,7 @@ def decode_token(token: str) -> dict:
 def dealer_for(token: str) -> int | None:
     """Ask the portal API which dealer the caller belongs to (403 there means unmapped)."""
     res = httpx.get(
-        f"{portal_api_url()}/dealers/me", headers={"authorization": f"Bearer {token}"}, timeout=10
+        f"{portal_api_url()}/dealers/me", headers={"authorization": f"Bearer {token}"}, timeout=30
     )
     if res.status_code in (401, 403):
         raise HTTPException(res.status_code, "Portal API rejected the token")

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "computeLocation": { "value": "centralus" },
+    "imageRegistry": { "value": "ghcr.io/methos237" },
+    "imageTag": { "value": "latest" },
+    "entraTenantId": { "value": "2acd956a-b174-4211-8f74-12b183c6b3d3" },
+    "apiClientId": { "value": "7088d89b-ae0f-445f-a41c-188e3f62f657" },
+    "m365TenantId": { "value": "2acd956a-b174-4211-8f74-12b183c6b3d3" },
+    "m365ClientId": { "value": "2939f310-576b-4e69-9dda-30197e6e0e81" },
+    "m365Library": { "value": "Documents" }
+  }
+}
