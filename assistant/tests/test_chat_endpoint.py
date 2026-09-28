@@ -47,7 +47,7 @@ def client(conn, tmp_path: Path):
     )
 
     @asynccontextmanager
-    async def no_tools(token: str):
+    async def no_tools(user: User):
         yield []
 
     app.dependency_overrides[current_user] = lambda: User(

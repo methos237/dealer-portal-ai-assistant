@@ -6,6 +6,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from app.agent import _strict, build_request, run_turn
+from app.auth import User
 from app.chat import sse
 from rag.retrieval import Hit
 from tests.fakes import (
@@ -199,3 +200,15 @@ def test_strict_adds_additional_properties_false_recursively() -> None:
 
 def test_sse_framing() -> None:
     assert sse("text", {"text": "hi"}) == 'event: text\ndata: {"text": "hi"}\n\n'
+
+
+def test_m365_tools_only_for_thor_admin(monkeypatch) -> None:
+    from app.chat import tool_sources
+
+    monkeypatch.setenv("M365_MCP_URL", "http://localhost:8100/mcp")
+    dealer = User(oid="o", roles=["Dealer.User"], dealer_id=1, token="t")
+    admin = User(oid="o", roles=["Thor.Admin"], dealer_id=None, token="t")
+    assert tool_sources(dealer) == ["http://localhost:5080/mcp"]
+    assert tool_sources(admin) == ["http://localhost:5080/mcp", "http://localhost:8100/mcp"]
+    monkeypatch.delenv("M365_MCP_URL")
+    assert tool_sources(admin) == ["http://localhost:5080/mcp"]
