@@ -1,7 +1,11 @@
 name: eval
 
-# Manual only until the end of Phase 7; restore pull_request and push triggers then.
 on:
+  pull_request:
+    paths: ["assistant/**", ".github/workflows/eval.yml"]
+  push:
+    branches: [master]
+    paths: ["assistant/**", ".github/workflows/eval.yml"]
   workflow_dispatch:
 
 concurrency:
@@ -49,8 +53,9 @@ jobs:
           name: eval-results
           path: assistant/evals/out/*.json
 
-  # Paid: LLM-graded suites. master, manual dispatch, or a PR labeled `eval`. Lands in Phase 3.
+  # Paid: LLM-graded suites. Manual dispatch only until the final run-through; no token spend from CI before then.
   full:
+    if: github.event_name == 'workflow_dispatch'
     needs: retrieval
     runs-on: ubuntu-latest
     steps:
