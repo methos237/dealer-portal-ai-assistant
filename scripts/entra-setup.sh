@@ -15,7 +15,8 @@
 set -euo pipefail
 
 GRAPH=https://graph.microsoft.com/v1.0
-WEB_REDIRECT_URI=${WEB_REDIRECT_URI:-http://localhost:3000/api/auth/callback/microsoft-entra-id}
+# Local dev plus the Azure hostname from infra/apps.bicep; override WEB_REDIRECT_URIS (space separated) for others.
+WEB_REDIRECT_URIS=${WEB_REDIRECT_URIS:-"http://localhost:3000/api/auth/callback/microsoft-entra-id https://app-dealer-portal-web.azurewebsites.net/api/auth/callback/microsoft-entra-id"}
 TEST_USER_PASSWORD=${TEST_USER_PASSWORD:-$(openssl rand -base64 18)}
 
 TENANT_ID=$(az account show --query tenantId -o tsv)
@@ -77,7 +78,7 @@ if [ -z "$WEB_APP_ID" ]; then
   log "creating dealer-portal-web"
   WEB_APP_ID=$(az ad app create --display-name dealer-portal-web \
     --sign-in-audience AzureADMyOrg \
-    --web-redirect-uris "$WEB_REDIRECT_URI" \
+    --web-redirect-uris $WEB_REDIRECT_URIS \
     --enable-id-token-issuance true --query appId -o tsv)
   # Microsoft Graph delegated: openid, profile, email, User.Read
   az ad app permission add --id "$WEB_APP_ID" --api 00000003-0000-0000-c000-000000000000 --api-permissions \
@@ -88,6 +89,8 @@ if [ -z "$WEB_APP_ID" ]; then
   az ad app permission add --id "$WEB_APP_ID" --api "$API_APP_ID" --api-permissions "$SCOPE_ID=Scope" >/dev/null
 fi
 ensure_sp "$WEB_APP_ID" >/dev/null
+log "setting dealer-portal-web redirect URIs"
+az ad app update --id "$WEB_APP_ID" --web-redirect-uris $WEB_REDIRECT_URIS
 log "granting admin consent for dealer-portal-web"
 consented=
 for _ in $(seq 1 18); do   # a new service principal takes a minute or two to propagate
