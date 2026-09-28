@@ -29,6 +29,7 @@ resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
 
 var common = {
   APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
+  WEBSITES_CONTAINER_START_TIME_LIMIT: '600' // api migrates and seeds before it listens; B1 cold starts are slow
   WEBSITES_ENABLE_APP_SERVICE_STORAGE: 'false'
   DOCKER_ENABLE_CI: 'true'
 }
