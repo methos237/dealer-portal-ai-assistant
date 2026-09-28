@@ -113,6 +113,10 @@ The same portal tools are defined once in the API and served twice: to the in-ap
 | Agent loop | Anthropic Python SDK tool runner with streaming; MCP tools translated to strict Anthropic tools; parallel tool results returned in one message; MCP errors become `is_error` results; refusals and `max_tokens` stop the turn before any tool runs |
 | Structured extraction | `POST /extract/claim` pulls VIN, description and amount from a pasted customer email with `messages.parse` (structured outputs), a separate call because citations and structured output cannot share a request |
 
+![Assistant drafting a claim: tool calls, then a confirm card](docs/screenshots/assistant-confirm.png)
+
+`scripts/live-agent-check.mjs` drives this flow against the running stack with a signed session and a real API token (see `docs/mcp-clients.md` for the token), confirms the card, and checks the claim landed.
+
 ### Guardrails
 
 - Tool allowlist by role enforced in the API authorization layer, not in the prompt.

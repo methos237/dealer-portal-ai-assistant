@@ -135,14 +135,18 @@ export function AssistantPanel() {
         if (ev.event === "conversation") {
           if (!conversationId) {
             setConversationId(data.id);
-            setConversations((c) => [
-              {
-                id: data.id,
-                title: question.slice(0, 80),
-                created_at: new Date().toISOString(),
-              },
-              ...c,
-            ]);
+            setConversations((c) =>
+              c.some((x) => x.id === data.id)
+                ? c
+                : [
+                    {
+                      id: data.id,
+                      title: question.slice(0, 80),
+                      created_at: new Date().toISOString(),
+                    },
+                    ...c,
+                  ],
+            );
           }
         } else if (ev.event === "text") {
           setMessages((m) =>
@@ -152,6 +156,35 @@ export function AssistantPanel() {
           setMessages((m) =>
             patchLast(m, (b) => ({ ...b, citations: [...b.citations, data] })),
           );
+        } else if (ev.event === "tool") {
+          setMessages((m) => {
+            const last = m[m.length - 1];
+            return [
+              ...m.slice(0, -1),
+              {
+                ...last,
+                tools: [...(last.tools ?? []), data],
+                blocks: [
+                  ...last.blocks,
+                  { type: "text", text: "", citations: [] },
+                ],
+              },
+            ];
+          });
+        } else if (ev.event === "confirm") {
+          setMessages((m) => {
+            const last = m[m.length - 1];
+            return [
+              ...m.slice(0, -1),
+              {
+                ...last,
+                drafts: [
+                  ...(last.drafts ?? []),
+                  { ...data, status: "pending" },
+                ],
+              },
+            ];
+          });
         } else if (ev.event === "done") {
           setMessages((m) => {
             const last = m[m.length - 1];
