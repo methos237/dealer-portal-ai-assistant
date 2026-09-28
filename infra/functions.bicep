@@ -2,9 +2,6 @@ param location string
 param storageAccountName string
 param appInsightsConnectionString string
 param keyVaultName string
-param postgresHost string
-param postgresDatabase string
-param postgresAdminLogin string
 param openAiEndpoint string
 param openAiDeployment string
 param m365TenantId string
@@ -56,7 +53,7 @@ resource func 'Microsoft.Web/sites@2024-04-01' = {
       appSettings: [
         { name: 'AzureWebJobsStorage__accountName', value: storageAccountName }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
-        { name: 'DATABASE_URL', value: 'postgresql://${postgresAdminLogin}:@${kv}postgres-password)@${postgresHost}:5432/${postgresDatabase}?sslmode=require' }
+        { name: 'DATABASE_URL', value: '@${kv}database-url)' }
         { name: 'AZURE_OPENAI_ENDPOINT', value: openAiEndpoint }
         { name: 'AZURE_OPENAI_API_KEY', value: '@${kv}openai-api-key)' }
         { name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT', value: openAiDeployment }

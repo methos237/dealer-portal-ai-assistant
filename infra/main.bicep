@@ -57,8 +57,12 @@ module keyvault 'keyvault.bicep' = {
   params: {
     location: location
     openAiAccountName: openai.outputs.accountName
+    // App Service resolves a Key Vault reference only when it is the whole setting value, so the
+    // connection strings are stored complete.
     secrets: {
       'postgres-password': postgresAdminPassword
+      'postgres-connection-api': 'Host=${postgres.outputs.host};Port=5432;Database=${postgres.outputs.databaseName};Username=${postgres.outputs.adminLogin};Password=${postgresAdminPassword};Ssl Mode=Require'
+      'database-url': 'postgresql://${postgres.outputs.adminLogin}:${postgresAdminPassword}@${postgres.outputs.host}:5432/${postgres.outputs.databaseName}?sslmode=require'
       'web-client-secret': webClientSecret
       'auth-secret': authSecret
       'anthropic-api-key': anthropicApiKey
@@ -78,9 +82,6 @@ module apps 'apps.bicep' = {
     apiClientId: apiClientId
     webClientId: webClientId
     entraApiScope: entraApiScope
-    postgresHost: postgres.outputs.host
-    postgresDatabase: postgres.outputs.databaseName
-    postgresAdminLogin: postgres.outputs.adminLogin
     openAiEndpoint: openai.outputs.endpoint
     openAiDeployment: openai.outputs.deploymentName
     m365TenantId: m365TenantId
@@ -98,9 +99,6 @@ module functions 'functions.bicep' = {
     storageAccountName: storage.outputs.storageAccountName
     appInsightsConnectionString: monitoring.outputs.connectionString
     keyVaultName: keyvault.outputs.vaultName
-    postgresHost: postgres.outputs.host
-    postgresDatabase: postgres.outputs.databaseName
-    postgresAdminLogin: postgres.outputs.adminLogin
     openAiEndpoint: openai.outputs.endpoint
     openAiDeployment: openai.outputs.deploymentName
     m365TenantId: m365TenantId

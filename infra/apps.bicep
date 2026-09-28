@@ -6,9 +6,6 @@ param entraTenantId string
 param apiClientId string
 param webClientId string
 param entraApiScope string
-param postgresHost string
-param postgresDatabase string
-param postgresAdminLogin string
 param openAiEndpoint string
 param openAiDeployment string
 param m365TenantId string
@@ -52,7 +49,7 @@ var settings = {
   api: union(common, {
     WEBSITES_PORT: '5080'
     ASPNETCORE_ENVIRONMENT: 'Production'
-    ConnectionStrings__Portal: 'Host=${postgresHost};Port=5432;Database=${postgresDatabase};Username=${postgresAdminLogin};Password=@${kv}postgres-password);Ssl Mode=Require'
+    ConnectionStrings__Portal: '@${kv}postgres-connection-api)'
     Database__MigrateOnStart: 'true'
     Database__SeedOnStart: 'true'
     AzureAd__TenantId: entraTenantId
@@ -60,7 +57,7 @@ var settings = {
   })
   assistant: union(common, {
     WEBSITES_PORT: '8000'
-    DATABASE_URL: 'postgresql://${postgresAdminLogin}:@${kv}postgres-password)@${postgresHost}:5432/${postgresDatabase}?sslmode=require'
+    DATABASE_URL: '@${kv}database-url)'
     PORTAL_API_URL: 'https://${hosts.api}'
     AzureAd__TenantId: entraTenantId
     AzureAd__ClientId: apiClientId
