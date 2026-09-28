@@ -43,3 +43,4 @@ infra/**/*.json
 .DS_Store
 .idea/
 .vscode/
+web/next-env.d.ts

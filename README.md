@@ -83,17 +83,15 @@ An Azure subscription and an Entra ID tenant are needed for sign-in and deployme
 ## Running locally
 
 ```bash
-cp .env.example .env                      # fill in Azure and Entra values, see below
-docker compose up -d                      # Postgres + pgvector on localhost:5434
-
-cd web && npm install && npm run dev      # http://localhost:3000
-cd api && dotnet run --project src/DealerPortal.Api   # http://localhost:5080
-cd assistant && uv sync && uv run python -m rag.migrate && uv run fastapi dev   # http://localhost:8000
+make setup     # once: copies .env.example to .env, installs web, api and assistant dependencies
+make dev       # Postgres + pgvector on 5434, then web :3000, api :5080, assistant :8000 (Ctrl-C stops all)
+make migrate   # applies assistant/migrations to the rag schema
+make check     # every check CI runs
 ```
 
-Health checks: `web/health`, `api/health`, `assistant/health`. In Development the API applies EF Core migrations and, when the database is empty, `docker/postgres/seed.sql` (3 dealers, 20 units, 30 claims, 15 parts orders).
+Fill `.env` with the Azure and Entra values below before `make dev`. The API applies EF Core migrations on start and, when the database is empty, `docker/postgres/seed.sql` (3 dealers, 20 units, 30 claims, 15 parts orders). Sign in with one of the test users created by `scripts/entra-setup.sh` (one per role).
 
-Sign in with one of the test users created by `scripts/entra-setup.sh` (one per role).
+Health checks: `web/health`, `api/health`, `assistant/health`.
 
 Azure and Entra setup, once per subscription:
 
@@ -101,15 +99,6 @@ Azure and Entra setup, once per subscription:
 az login
 az deployment sub create --location eastus2 --template-file infra/main.bicep   # resource group + document storage
 scripts/entra-setup.sh                    # app registrations, roles, test users; prints .env lines
-```
-
-Checks that CI runs, per component:
-
-```bash
-cd web && npm run lint && npm run typecheck && npm run format:check && npm test && npm run e2e
-cd api && dotnet format --verify-no-changes && dotnet test
-cd assistant && uv run ruff format --check && uv run ruff check && uv run pytest -m "not live"
-az bicep build --file infra/main.bicep
 ```
 
 ## Deliberately out of scope
