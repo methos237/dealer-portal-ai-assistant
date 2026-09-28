@@ -28,7 +28,7 @@ jobs:
       apiUrl: ${{ steps.deploy.outputs.apiUrl }}
       assistantUrl: ${{ steps.deploy.outputs.assistantUrl }}
       postgresHost: ${{ steps.deploy.outputs.postgresHost }}
-      keyVaultName: ${{ steps.deploy.outputs.keyVaultName }}
+      openAiAccountName: ${{ steps.deploy.outputs.openAiAccountName }}
       openAiEndpoint: ${{ steps.deploy.outputs.openAiEndpoint }}
       functionAppName: ${{ steps.deploy.outputs.functionAppName }}
     steps:
@@ -51,7 +51,7 @@ jobs:
               webClientSecret="${{ secrets.WEB_CLIENT_SECRET }}" authSecret="${{ secrets.AUTH_SECRET }}" \
               anthropicApiKey="${{ secrets.ANTHROPIC_API_KEY }}" m365ClientSecret="${{ secrets.M365_CLIENT_SECRET }}" \
             --query properties.outputs -o json > outputs.json
-          for k in webUrl apiUrl assistantUrl postgresHost keyVaultName openAiEndpoint functionAppName; do
+          for k in webUrl apiUrl assistantUrl postgresHost openAiAccountName openAiEndpoint functionAppName; do
             echo "$k=$(jq -r ".$k.value" outputs.json)" >> "$GITHUB_OUTPUT"
           done
 
@@ -81,7 +81,7 @@ jobs:
           AZURE_OPENAI_ENDPOINT: ${{ needs.infra.outputs.openAiEndpoint }}
           AZURE_OPENAI_EMBEDDING_DEPLOYMENT: text-embedding-3-small
         run: |
-          export AZURE_OPENAI_API_KEY=$(az keyvault secret show --vault-name ${{ needs.infra.outputs.keyVaultName }} -n openai-api-key --query value -o tsv)
+          export AZURE_OPENAI_API_KEY=$(az cognitiveservices account keys list -g "$RG" -n ${{ needs.infra.outputs.openAiAccountName }} --query key1 -o tsv)
           uv sync --locked
           uv run python -c "import psycopg,os; c=psycopg.connect(os.environ['DATABASE_URL']); c.execute('CREATE EXTENSION IF NOT EXISTS vector'); c.commit()"
           uv run python -m rag.migrate

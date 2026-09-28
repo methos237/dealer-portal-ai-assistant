@@ -129,5 +129,6 @@ output apiUrl string = 'https://${apps.outputs.apiHost}'
 output assistantUrl string = 'https://${apps.outputs.assistantHost}'
 output postgresHost string = postgres.outputs.host
 output openAiEndpoint string = openai.outputs.endpoint
+output openAiAccountName string = openai.outputs.accountName
 output keyVaultName string = keyvault.outputs.vaultName
 output functionAppName string = functions.outputs.name

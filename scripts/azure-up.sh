@@ -41,7 +41,7 @@ az deployment group create -g "$RG" -n dealer-portal --template-file infra/main.
     authSecret="$AUTH_SECRET" anthropicApiKey="$ANTHROPIC_API_KEY" m365ClientSecret="$M365_CLIENT_SECRET" \
   --query properties.outputs -o json > /tmp/dealer-portal-outputs.json
 out() { python3 -c "import json;print(json.load(open('/tmp/dealer-portal-outputs.json'))['$1']['value'])"; }
-PG_HOST=$(out postgresHost); KV=$(out keyVaultName); OAI=$(out openAiEndpoint); FUNC=$(out functionAppName)
+PG_HOST=$(out postgresHost); OAI=$(out openAiEndpoint); OAI_NAME=$(out openAiAccountName); FUNC=$(out functionAppName)
 WEB_URL=$(out webUrl); API_URL=$(out apiUrl); ASSISTANT_URL=$(out assistantUrl)
 
 log "rag schema and fixtures on Azure Postgres (Azure OpenAI embeddings)"
@@ -53,7 +53,8 @@ trap 'az postgres flexible-server firewall-rule delete -g "$RG" -s "${PG_HOST%%.
   cd assistant
   export DATABASE_URL="postgresql://portal:$AZURE_POSTGRES_PASSWORD@$PG_HOST:5432/dealer_portal?sslmode=require"
   export AZURE_OPENAI_ENDPOINT="$OAI" AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
-  export AZURE_OPENAI_API_KEY=$(az keyvault secret show --vault-name "$KV" -n openai-api-key --query value -o tsv)
+  # the deploying identity has no Key Vault data role; read the key from the account itself
+  export AZURE_OPENAI_API_KEY=$(az cognitiveservices account keys list -g "$RG" -n "$OAI_NAME" --query key1 -o tsv)
   uv run python -c "import psycopg,os; c=psycopg.connect(os.environ['DATABASE_URL']); c.execute('CREATE EXTENSION IF NOT EXISTS vector'); c.commit()"
   uv run python -m rag.migrate
   uv run python -m rag.ingest fixtures/docs
