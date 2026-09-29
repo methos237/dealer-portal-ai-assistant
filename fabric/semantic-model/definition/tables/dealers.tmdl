@@ -1,0 +1,32 @@
+table dealers
+	lineageTag: 65e362b9-b88c-4669-aeda-d6f750cb8e47
+	sourceLineageTag: [dbo].[dealers]
+
+	column id
+		dataType: int64
+		isHidden
+		lineageTag: 947e2c8f-ef65-4e68-b08e-aac0ee4ff79c
+		sourceLineageTag: id
+		summarizeBy: none
+		sourceColumn: id
+
+	column code
+		dataType: string
+		lineageTag: 1d5b70d9-ccbf-4ef6-8490-7834b127c502
+		sourceLineageTag: code
+		summarizeBy: none
+		sourceColumn: code
+
+	column name
+		dataType: string
+		lineageTag: c4b2057d-949f-4c67-ab51-01bd177d1edf
+		sourceLineageTag: name
+		summarizeBy: none
+		sourceColumn: name
+
+	partition dealers = entity
+		mode: directLake
+		source
+			entityName: dealers
+			schemaName: dbo
+			expressionSource: DatabaseQuery

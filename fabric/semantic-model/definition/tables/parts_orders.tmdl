@@ -1,0 +1,60 @@
+table parts_orders
+	lineageTag: 87c589c9-71e7-4618-a9fa-a524fdae1d93
+	sourceLineageTag: [dbo].[parts_orders]
+
+	measure 'Open Parts Orders' = CALCULATE(COUNTROWS(parts_orders), parts_orders[status] = "Submitted")
+		formatString: #,##0
+		lineageTag: 28bc784e-636c-4b83-82fa-482f627f2c8b
+
+	column id
+		dataType: int64
+		isHidden
+		lineageTag: 1193d7b8-c15d-438c-9609-0bb7c0045f31
+		sourceLineageTag: id
+		summarizeBy: none
+		sourceColumn: id
+
+	column dealer_id
+		dataType: int64
+		isHidden
+		lineageTag: 2630f342-d1c9-430c-bfab-4740efe2281c
+		sourceLineageTag: dealer_id
+		summarizeBy: none
+		sourceColumn: dealer_id
+
+	column unit_id
+		dataType: int64
+		isHidden
+		lineageTag: 427a8a9a-880d-4c28-ac89-c68b6b7e9639
+		sourceLineageTag: unit_id
+		summarizeBy: none
+		sourceColumn: unit_id
+
+	column status
+		dataType: string
+		lineageTag: 8bc9347f-9bef-470a-8074-46bb746eaaf8
+		sourceLineageTag: status
+		summarizeBy: none
+		sourceColumn: status
+
+	column total
+		dataType: decimal
+		lineageTag: 570ccac6-8c7e-48a2-86d4-87ab7492b3c3
+		sourceLineageTag: total
+		summarizeBy: none
+		sourceColumn: total
+
+	column created_at
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 28223166-d4f3-489f-9597-a17f5e510b19
+		sourceLineageTag: created_at
+		summarizeBy: none
+		sourceColumn: created_at
+
+	partition parts_orders = entity
+		mode: directLake
+		source
+			entityName: parts_orders
+			schemaName: dbo
+			expressionSource: DatabaseQuery

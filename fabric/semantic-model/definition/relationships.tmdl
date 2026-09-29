@@ -1,0 +1,19 @@
+relationship bc6af7f0-6f8e-4cc5-8b92-2f743b7eed7f
+	fromColumn: claims.dealer_id
+	toColumn: dealers.id
+
+relationship 6716e4a9-846a-451e-bc67-c0fc48b5a37a
+	fromColumn: units.dealer_id
+	toColumn: dealers.id
+
+relationship 6d7c419a-3b9d-4641-81fc-570022bb14c0
+	fromColumn: parts_orders.dealer_id
+	toColumn: dealers.id
+
+relationship f8e418ab-9843-47ca-bb84-bc590cf93b10
+	fromColumn: parts_order_lines.parts_order_id
+	toColumn: parts_orders.id
+
+relationship 62420763-eade-4944-b6bf-4aaeb5a31d85
+	fromColumn: parts_order_lines.sku
+	toColumn: parts.sku
