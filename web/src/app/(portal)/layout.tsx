@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
+import { signOutAction } from "@/lib/auth-actions";
 import { DraftReplayer } from "@/components/DraftReplayer";
 import { Close, Mark, Menu } from "@/components/icons";
 import { PortalNav, type NavLink } from "@/components/PortalNav";
@@ -16,10 +17,7 @@ const links: NavLink[] = [
   { href: "/assistant", label: "Assistant" },
 ];
 
-async function signOutAction() {
-  "use server";
-  await signOut({ redirectTo: "/" });
-}
+const portalRoles = ["Dealer.User", "Dealer.Admin", "Thor.Admin"];
 
 export default async function PortalLayout({
   children,
@@ -28,6 +26,24 @@ export default async function PortalLayout({
 }) {
   const session = await auth();
   if (!session) redirect("/");
+  if (!session.roles.some((r) => portalRoles.includes(r))) {
+    // The api would answer 403 to every call; say why instead of surfacing that as an error.
+    return (
+      <main className="mx-auto mt-16 max-w-xl px-4">
+        <div className="card p-8">
+          <h1 className="text-2xl">No portal role on this account</h1>
+          <p className="mt-3 text-fg-muted">
+            {session.user?.email ?? "This account"} signed in, but the token
+            carries none of the roles Dealer.User, Dealer.Admin or Thor.Admin.
+            Ask a THOR administrator to assign one, then sign out and back in.
+          </p>
+          <form action={signOutAction} className="mt-6">
+            <button className="btn btn-primary">Sign out</button>
+          </form>
+        </div>
+      </main>
+    );
+  }
   const isThorAdmin = session.roles.includes("Thor.Admin");
   const nav = isThorAdmin
     ? [
@@ -53,7 +69,7 @@ export default async function PortalLayout({
         <div className="card relative mx-auto flex max-w-7xl items-center gap-3 px-3 py-2 shadow-bar md:px-4">
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 pr-2 font-heading text-base font-semibold tracking-tight"
+            className="flex items-center gap-2 pr-2 font-heading text-base font-semibold tracking-tight whitespace-nowrap"
           >
             <Mark className="text-primary" />
             Dealer Portal
@@ -65,7 +81,7 @@ export default async function PortalLayout({
           <div className="ml-auto flex items-center gap-1">
             <ThemeToggle />
             <span
-              className="hidden items-center gap-2 rounded-full bg-surface-2 py-1 pr-3 pl-1 text-sm lg:flex"
+              className="hidden items-center gap-2 rounded-full bg-surface-2 py-1 pr-3 pl-1 text-sm whitespace-nowrap xl:flex"
               title={session.roles.join(", ") || "no role"}
             >
               <span className="flex size-7 items-center justify-center rounded-full bg-ink font-heading text-xs font-semibold text-ink-fg">
