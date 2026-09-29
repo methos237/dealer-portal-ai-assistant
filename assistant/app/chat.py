@@ -14,9 +14,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.agent import build_request, mcp_tools, run_turn, source_dict
+from app.agent import MODEL, build_request, mcp_tools, run_turn, source_dict
 from app.auth import User, current_user, portal_api_url
 from app.pii import get_logger
+from app.pricing import USAGE_TO_PRICE, cost_usd
+from app.telemetry import tracer
 from rag import settings
 from rag.embedder import Embedder, get_embedder
 from rag.retrieval import retrieve
@@ -132,9 +134,11 @@ async def chat(
         conn.commit()
 
     history = history_for(conn, conversation_id)
-    hits = await anyio.to_thread.run_sync(
-        lambda: retrieve(conn, emb, body.message, dealer_id=user.dealer_id)
-    )
+    with tracer.start_as_current_span("retrieval") as span:
+        hits = await anyio.to_thread.run_sync(
+            lambda: retrieve(conn, emb, body.message, dealer_id=user.dealer_id)
+        )
+        span.set_attribute("retrieval.hits", len(hits))
     request = build_request(history, body.message, hits)
     log.info(
         "chat conversation=%s dealer=%s question=%s", conversation_id, user.dealer_id, body.message
@@ -170,7 +174,7 @@ async def chat(
                                         "drafts": data.drafts,
                                     }
                                 ),
-                                json.dumps(data.usage),
+                                json.dumps({**data.usage, "model": MODEL}),
                             ),
                         )
                     yield sse("done", {"stop_reason": data.stop_reason, "usage": data.usage})
@@ -221,6 +225,38 @@ def get_conversation(
             {"role": r, "content": c, "sources": s, "usage": u, "created_at": t.isoformat()}
             for r, c, s, u, t in rows
         ],
+    }
+
+
+@router.get("/conversations/{conversation_id}/cost")
+def conversation_cost(
+    conversation_id: uuid.UUID,
+    user: User = Depends(current_user),
+    conn: psycopg.Connection = Depends(get_conn),
+) -> dict:
+    """Token totals and USD cost of every assistant turn, from the pinned price table."""
+    owner = conn.execute(
+        "SELECT user_oid FROM rag.conversations WHERE id = %s", (conversation_id,)
+    ).fetchone()
+    if not owner or str(owner[0]) != user.oid:
+        raise HTTPException(404, "Conversation not found")
+    usages = [
+        u
+        for (u,) in conn.execute(
+            "SELECT usage FROM rag.messages WHERE conversation_id = %s AND usage IS NOT NULL",
+            (conversation_id,),
+        ).fetchall()
+    ]
+    totals = {k: sum(u.get(k) or 0 for u in usages) for k in USAGE_TO_PRICE}
+    costs = [cost_usd(u) for u in usages]
+    return {
+        "id": str(conversation_id),
+        "turns": len(usages),
+        "model": usages[-1].get("model", MODEL) if usages else MODEL,
+        "usage": totals,
+        "cost_usd": {
+            k: round(sum(c[k] for c in costs), 6) for k in [*USAGE_TO_PRICE.values(), "total"]
+        },
     }
 
 

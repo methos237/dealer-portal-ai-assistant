@@ -19,6 +19,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from app.pii import get_logger
+from app.telemetry import inject_trace_context, tracer
 from rag.retrieval import Hit
 
 log = get_logger("assistant.agent")
@@ -145,7 +146,11 @@ def _strict(schema: dict) -> dict:
 @asynccontextmanager
 async def mcp_tools(url: str, token: str) -> AsyncIterator[list]:
     """tools/list on the api's /mcp as the calling user, translated to strict Anthropic tools."""
-    async with httpx.AsyncClient(headers={"authorization": f"Bearer {token}"}, timeout=60) as http:
+    async with httpx.AsyncClient(
+        headers={"authorization": f"Bearer {token}"},
+        timeout=60,
+        event_hooks={"request": [inject_trace_context]},
+    ) as http:
         async with streamable_http_client(url, http_client=http) as (read, write, *_):
             async with ClientSession(read, write) as session:
                 await session.initialize()
@@ -182,6 +187,10 @@ async def run_turn(
         **request, tools=tools, stream=True, max_iterations=MAX_ITERATIONS
     )
     async for stream in runner:
+        # One span per model call, carrying the gen_ai.* fields cost and behaviour are judged by.
+        span = tracer.start_span(
+            "claude.messages", attributes={"gen_ai.request.model": request["model"]}
+        )
         async for event in stream:
             if event.type == "content_block_start" and event.content_block.type == "text":
                 result.content.append({"type": "text", "text": "", "citations": []})
@@ -208,7 +217,10 @@ async def run_turn(
         message = await stream.get_final_message()
         for k in USAGE_KEYS:
             result.usage[k] += getattr(message.usage, k, 0) or 0
+            span.set_attribute(f"gen_ai.usage.{k}", getattr(message.usage, k, 0) or 0)
         result.stop_reason = message.stop_reason
+        span.set_attribute("gen_ai.response.finish_reasons", [message.stop_reason or ""])
+        span.end()
         if message.stop_reason != "tool_use":
             continue  # end_turn, refusal, max_tokens: runner ends the loop; never run tools here
 

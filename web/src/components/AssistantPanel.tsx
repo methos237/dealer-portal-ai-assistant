@@ -39,6 +39,12 @@ type Message = {
   stopReason?: string;
 };
 type Conversation = { id: string; title: string; created_at: string };
+type Cost = {
+  turns: number;
+  model: string;
+  usage: Record<string, number>;
+  cost_usd: Record<string, number> & { total: number };
+};
 type Chunk = {
   chunk_id: number;
   text: string;
@@ -50,8 +56,10 @@ type Chunk = {
 const api = (path: string, init?: RequestInit) =>
   fetch(`/api/assistant/${path}`, init);
 
-export function AssistantPanel() {
+/** showCost: Thor.Admin sees the running USD cost of the conversation (GET /conversations/{id}/cost). */
+export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [cost, setCost] = useState<Cost | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -76,6 +84,7 @@ export function AssistantPanel() {
   async function open(id: string) {
     setConversationId(id);
     setError(null);
+    void loadCost(id);
     const detail = await api(`conversations/${id}`).then((r) => r.json());
     setMessages(
       detail.messages.map(
@@ -98,6 +107,7 @@ export function AssistantPanel() {
   function reset() {
     setConversationId(null);
     setMessages([]);
+    setCost(null);
     setError(null);
   }
 
@@ -130,9 +140,11 @@ export function AssistantPanel() {
       });
       if (!res.ok)
         throw new Error((await res.text()) || `assistant ${res.status}`);
+      let currentId = conversationId;
       for await (const ev of readSse(res)) {
         const data = JSON.parse(ev.data);
         if (ev.event === "conversation") {
+          currentId = data.id;
           if (!conversationId) {
             setConversationId(data.id);
             setConversations((c) =>
@@ -193,6 +205,7 @@ export function AssistantPanel() {
               { ...last, usage: data.usage, stopReason: data.stop_reason },
             ];
           });
+          if (currentId) void loadCost(currentId);
         } else if (ev.event === "error") {
           setError(data.message);
         }
@@ -238,6 +251,11 @@ export function AssistantPanel() {
 
   async function showChunk(id: number) {
     setChunk(await api(`chunks/${id}`).then((r) => r.json()));
+  }
+
+  async function loadCost(id: string) {
+    if (showCost)
+      setCost(await api(`conversations/${id}/cost`).then((r) => r.json()));
   }
 
   return (
@@ -359,6 +377,12 @@ export function AssistantPanel() {
               )}
             </div>
           ))}
+          {cost && (
+            <p className="text-xs text-slate-500" data-testid="cost">
+              Conversation cost: ${cost.cost_usd.total.toFixed(4)} ·{" "}
+              {cost.turns} {cost.turns === 1 ? "turn" : "turns"} · {cost.model}
+            </p>
+          )}
           <div ref={bottom} />
         </div>
         {error && (

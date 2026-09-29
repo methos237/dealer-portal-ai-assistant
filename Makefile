@@ -27,7 +27,7 @@ setup:
 	cd functions && uv sync
 
 api:
-	cd api && dotnet run --project src/DealerPortal.Api
+	cd api && set -a && . $(ENV_FILE) && set +a && dotnet run --project src/DealerPortal.Api
 
 web:
 	cd web && npm run dev

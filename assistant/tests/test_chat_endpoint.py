@@ -99,6 +99,22 @@ def test_chat_streams_events_and_persists_both_turns(client) -> None:
     assert http.get("/conversations").json()[0]["id"] == conversation_id
 
 
+def test_conversation_cost_sums_turns_from_the_price_table(client) -> None:
+    tc, _ = client
+    res = tc.post("/chat", json={"message": "When do I retract the awning?"})
+    conversation_id = parse_sse(res.text)[0][1]["id"]
+
+    cost = tc.get(f"/conversations/{conversation_id}/cost").json()
+
+    assert cost["turns"] == 1
+    assert cost["model"] == "claude-opus-5"
+    assert cost["usage"]["input_tokens"] == 900
+    assert cost["usage"]["cache_read_input_tokens"] == 850
+    # 900 * 5 + 30 * 25 + 850 * 0.50 per million tokens
+    assert cost["cost_usd"]["total"] == 0.005675
+    assert tc.get(f"/conversations/{uuid.uuid4()}/cost").status_code == 404
+
+
 def test_conversation_of_another_user_is_404(client) -> None:
     http, _ = client
     other = http.post("/chat", json={"message": "hello"})
