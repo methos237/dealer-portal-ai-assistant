@@ -42,27 +42,31 @@ else
 fi
 [ -n "$FT" ] && [ "$FT" != null ] || die "no Fabric token"
 
-# call METHOD URL [json-body]  -> body on stdout; status in $STATUS, Location header in $LOCATION
+# call METHOD URL [json-body]  -> body on stdout; status via st, Location via loc, Retry-After via retry
 call() {
   local method=$1 url=$2 body=${3:-} hdr; hdr=$(mktemp)
   case $url in http*) ;; *) url="$FABRIC$url" ;; esac
   local token=$FT; [[ $url == $PBI* ]] && token=$PT
   curl -sS -X "$method" "$url" -D "$hdr" -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
     ${body:+--data "$body"} -o /tmp/fabric-body.json -w '' || true
-  STATUS=$(head -1 "$hdr" | awk '{print $2}')
-  LOCATION=$(awk 'tolower($1)=="location:"{print $2}' "$hdr" | tr -d '\r')
-  RETRY=$(awk 'tolower($1)=="retry-after:"{print $2}' "$hdr" | tr -d '\r')
+  # call usually runs in a $(...) subshell, so the response metadata goes through files, not variables
+  head -1 "$hdr" | awk '{print $2}' > /tmp/fabric-status
+  awk 'tolower($1)=="location:"{print $2}' "$hdr" | tr -d '\r' > /tmp/fabric-location
+  awk 'tolower($1)=="retry-after:"{print $2}' "$hdr" | tr -d '\r' > /tmp/fabric-retry
   rm -f "$hdr"
   cat /tmp/fabric-body.json
 }
-ok() { [[ $STATUS == 2* ]] || die "$1 -> HTTP $STATUS: $(cat /tmp/fabric-body.json)"; }
+st() { cat /tmp/fabric-status; }
+loc() { cat /tmp/fabric-location; }
+retry() { local r; r=$(cat /tmp/fabric-retry); echo "${r:-$1}"; }
+ok() { [[ $(st) == 2* ]] || die "$1 -> HTTP $(st): $(cat /tmp/fabric-body.json)"; }
 # Long-running operation: follow Location until Succeeded, then fetch the result.
 lro() {
   local what=$1
-  [[ $STATUS == 202 ]] || { ok "$what"; return; }
-  local op=$LOCATION
+  [[ $(st) == 202 ]] || { ok "$what"; return; }
+  local op; op=$(loc)
   while :; do
-    sleep "${RETRY:-5}"
+    sleep "$(retry 5)"
     local s; s=$(call GET "$op" | jq -r .status)
     case $s in
       Succeeded) call GET "$op/result"; return ;;
@@ -82,7 +86,7 @@ WS_ID=$(call GET /workspaces | jq -r --arg n "$WS_NAME" '.value[] | select(.disp
 if [ -z "$WS_ID" ]; then
   log "creating workspace $WS_NAME"
   WS_ID=$(call POST /workspaces "$(jq -n --arg n "$WS_NAME" --arg c "$CAP_ID" '{displayName:$n, description:"Dealer portal reporting (Fabric trial)"} + (if $c=="" then {} else {capacityId:$c} end)')" | jq -r .id)
-  [[ $STATUS == 2* ]] || die "create workspace -> HTTP $STATUS: $(cat /tmp/fabric-body.json). As a service principal: create workspace '$WS_NAME' on the trial capacity in the Fabric portal and add dealer-portal-m365 as Admin, then rerun."
+  [[ $(st) == 2* ]] || die "create workspace -> HTTP $(st): $(cat /tmp/fabric-body.json). As a service principal: create workspace '$WS_NAME' on the trial capacity in the Fabric portal and add dealer-portal-m365 as Admin, then rerun."
 elif [ -n "$CAP_ID" ] && [ "$(call GET "/workspaces/$WS_ID" | jq -r .capacityId)" != "$CAP_ID" ]; then
   call POST "/workspaces/$WS_ID/assignToCapacity" "{\"capacityId\":\"$CAP_ID\"}" >/dev/null; ok "assign capacity"
 fi
@@ -95,7 +99,7 @@ if [ -z "$LH_ID" ]; then
   call POST "/workspaces/$WS_ID/lakehouses" "{\"displayName\":\"$LH_NAME\"}" >/dev/null
   LH_ID=$(lro "create lakehouse" | jq -r .id)
 fi
-for _ in $(seq 1 40); do
+for _ in $(seq 1 80); do
   LH=$(call GET "/workspaces/$WS_ID/lakehouses/$LH_ID")
   [ "$(jq -r .properties.sqlEndpointProperties.provisioningStatus <<<"$LH")" = Success ] && break
   log "waiting for the SQL analytics endpoint"; sleep 15
@@ -118,7 +122,7 @@ if [ -z "$PG_CONNECTION_ID" ]; then
     privacyLevel: "Organizational",
     credentialDetails: { singleSignOnType: "None", connectionEncryption: "Encrypted", skipTestConnection: false,
       credentials: { credentialType: "Basic", username: "portal", password: $p } } }')" | jq -r .id)
-  [[ $STATUS == 2* ]] || { log "supported PostgreSQL connection types:"; call GET "/connections/supportedConnectionTypes?showAllCreationMethods=true" | jq '.value[] | select(.type|test("postgre";"i"))' >&2; die "create connection -> HTTP $STATUS: $(cat /tmp/fabric-body.json)"; }
+  [[ $(st) == 2* ]] || { log "supported PostgreSQL connection types:"; call GET "/connections/supportedConnectionTypes?showAllCreationMethods=true" | jq '.value[] | select(.type|test("postgre";"i"))' >&2; die "create connection -> HTTP $(st): $(cat /tmp/fabric-body.json)"; }
 fi
 log "connection $PG_CONNECTION_ID"
 
@@ -138,10 +142,10 @@ else
 fi
 
 log "running the pipeline once"
-call POST "/workspaces/$WS_ID/items/$PIPE_ID/jobs/Pipeline/instances" >/dev/null; ok "run pipeline"
-JOB=$LOCATION
+call POST "/workspaces/$WS_ID/items/$PIPE_ID/jobs/Pipeline/instances" "{}" >/dev/null; ok "run pipeline"   # empty body = HTTP 411
+JOB=$(loc)
 while :; do
-  sleep "${RETRY:-20}"
+  sleep "$(retry 20)"
   s=$(call GET "$JOB" | jq -r .status)
   case $s in
     Completed) log "pipeline run completed"; break ;;
@@ -188,7 +192,7 @@ fi
 # executeQueries needs Build on the model as well as Read. The REST API refuses Build for service principals
 # (documented limitation), so try and otherwise say what to click.
 call POST "$PBI/groups/$WS_ID/datasets/$MODEL_ID/users" "{\"identifier\":\"$SP_OID\",\"principalType\":\"App\",\"datasetUserAccessRight\":\"ReadExplore\"}" >/dev/null
-[[ $STATUS == 2* ]] || log "could not grant Build over REST (HTTP $STATUS). In the Fabric portal: $MODEL_NAME > Manage permissions > Add user > dealer-portal-m365 > Build."
+[[ $(st) == 2* ]] || log "could not grant Build over REST (HTTP $(st)). In the Fabric portal: $MODEL_NAME > Manage permissions > Add user > dealer-portal-m365 > Build."
 
 # ---------------------------------------------------------------- verify: one DAX query as the service principal
 SP_TOKEN=$(sp_token https://analysis.windows.net/powerbi/api)
