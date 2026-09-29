@@ -94,7 +94,7 @@ Cache verification: the second turn of a conversation reports `cache_read_input_
 | Suite | Grader | Threshold | Runs |
 |---|---|---|---|
 | retrieval (30 cases) | programmatic: recall@5 and MRR against the expected document and heading | recall@5 ≥ 0.90 | every PR touching `assistant/`, local embedder, no secrets |
-| answer, tool, injection | LLM judge (Phase 3) | faithfulness ≥ 4.2, tool exact match ≥ 0.90, injection 100% | `master`, manual dispatch, PRs labeled `eval` |
+| answer, tool, injection | LLM judge and programmatic checks | faithfulness ≥ 4.2, tool exact match ≥ 0.90, injection 100% | `master`, manual dispatch, PRs labeled `eval` |
 
 Current retrieval result on the fixtures:
 
@@ -139,7 +139,20 @@ The same portal tools are defined once in the API and served twice: to the in-ap
 | injection | 6 | no write tool called, no embedded instruction leaked | 100% | 100% |
 | answer | 6 | `claude-sonnet-5` faithfulness judge, 1 to 5, structured output | mean ≥ 4.2, none < 3 | 5.0 mean |
 
-One full pass of the three model-graded suites costs about 0.9 USD on `claude-opus-5` (most input tokens are prompt-cache reads). The retrieval suite is free and runs on every PR; the paid suites run on manual dispatch.
+One full pass of the three model-graded suites costs about 0.9 USD on `claude-opus-5` (most input tokens are prompt-cache reads). The retrieval suite is free and runs on every PR; the paid suites run on every push to `master`, on manual dispatch, and on pull requests labeled `eval`.
+
+## Observability and cost
+
+Every conversation is one distributed trace, and every assistant turn has a price.
+
+| Concern | How |
+|---|---|
+| Tracing | OpenTelemetry in all three services: `@vercel/otel` in the web app (server-side fetch spans, W3C context propagated to the assistant and the api), FastAPI and psycopg instrumentation in the assistant plus a `retrieval` span and one `claude.messages` span per model call carrying `gen_ai.request.model`, the four usage counters and the finish reason, ASP.NET Core, `HttpClient`, Npgsql and the MCP SDK's activity source in the api. The assistant injects `traceparent` into every `/mcp` call, so the api's tool spans and their SQL hang under the model call that asked for them |
+| Where traces go | Chosen by environment: `OTEL_EXPORTER_OTLP_ENDPOINT` sends OTLP to the Jaeger that `docker compose up` starts (http://localhost:16686); `APPLICATIONINSIGHTS_CONNECTION_STRING`, set by Bicep on App Service, sends to Application Insights; neither means no exporter and no overhead (tests) |
+| Cost per conversation | The assistant stores the `usage` of every turn (input, output, cache read, cache write tokens, model) in `rag.messages`. `GET /conversations/{id}/cost` prices them with the pinned table in `assistant/app/pricing.py` (list prices per million tokens; cache reads 0.1x input, cache writes 1.25x) and returns the per-bucket and total USD. `Thor.Admin` sees the running total under the conversation. A typical turn costs 0.03 to 0.08 USD; the eval runner's spend estimate uses the same table |
+| Demo | `scripts/demo.sh` starts the full stack from the published images (Postgres, Jaeger, api, assistant, web, mcp-m365), runs five scripted conversations through the assistant and api as the signed-in `az` user (cited answer, warranty tool call, a claim drafted and confirmed the way the browser does it, an out-of-corpus question, a prompt injection), prints each turn's tools and cost, then the free retrieval eval |
+
+![One trace: web proxy, assistant retrieval and Claude call, api /mcp tool calls and their Postgres queries](docs/screenshots/jaeger-trace.png)
 
 ## Microsoft 365
 
@@ -199,6 +212,22 @@ scripts/azure-up.sh             # deploy from .env; prints the portal URL
 scripts/azure-down.sh           # delete everything
 ```
 
+## Design decisions
+
+Each choice, and the alternative it was preferred over.
+
+| Decision | Instead of | Why |
+|---|---|---|
+| pgvector in the portal's Postgres | Azure AI Search | One database, one backup, one tenancy filter in SQL for documents and portal rows alike. The corpus is thousands of chunks, not millions; HNSW plus `tsvector` gives hybrid retrieval with no second service to pay for or secure. AI Search earns its place when the corpus or the query volume outgrows a single Postgres |
+| Citations from the API | Footnote prompting ("cite as [1]") | Claude's `citations` return exact character spans into the document blocks it was given, so a chip always opens the real source. Prompted footnotes look the same and are unverifiable |
+| MCP tools in-process in the api | A separate MCP sidecar | The tools are the portal's business rules; hosting them in the same ASP.NET Core process under the same JWT and the same `[Authorize]` attributes means one place enforces roles for REST, the assistant and Claude Desktop alike. A sidecar would duplicate the auth and the data access |
+| Writes confirmed in the browser | The agent calling write endpoints | Every write tool returns a draft; the user's browser posts the real request with the user's token. The model can never write, the audit trail is the user's, and a prompt injection has nothing to hijack |
+| Tenancy filter in the api's DAX | Power BI row-level security through effective identity | `executeQueries` does not apply RLS when a service principal is the caller, so the api adds `FILTER(dealers, dealers[id] = <caller>)` to every query from the same token claim the EF filters use. Authorization stays in one layer |
+| Fabric F2 capacity from Bicep | Fabric trial | No trial was available on this tenant; a pay-as-you-go F2 (about 0.36 USD per hour, suspended between demos) keeps the reporting path reproducible from code |
+| Bicep | Terraform | One provider, first-party resource coverage the day a resource ships, `what-if` on pull requests, no state file to store or lock. Terraform would win for a multi-cloud estate; this one is Azure only |
+| Anthropic SDK tool runner | A hand-written tool loop | The runner handles the request, execute, loop cycle and streaming; the code owns only the tools and the per-turn hooks (draft detection, refusal and `max_tokens` handling) |
+| Pinned price table | Live pricing lookups | Prices change rarely and a cost shown in the UI should be reproducible; the table is dated and tested, and the eval runner shares it |
+
 ## Prerequisites
 
 | Tool | Version | Used by |
@@ -221,7 +250,10 @@ make migrate   # applies assistant/migrations to the rag schema
 make ingest    # indexes assistant/fixtures/docs (first run downloads the 33 MB embedding model)
 make evals     # retrieval eval against the indexed fixtures
 make check     # every check CI runs
+scripts/demo.sh   # the whole thing without the UI: full stack from images, five conversations, eval summary, total cost
 ```
+
+`make up` also starts Jaeger; open http://localhost:16686 and pick the `web` service to see a conversation end to end.
 
 Fill `.env` with the Azure and Entra values below plus `ANTHROPIC_API_KEY` before `make dev`. For plumbing work without API spend: `docker compose --profile local-llm up -d` and set `ANTHROPIC_BASE_URL=http://localhost:4000`, `ANTHROPIC_API_KEY=local` (needs Ollama with `qwen3` on the host). The API applies EF Core migrations on start and, when the database is empty, `docker/postgres/seed.sql` (3 dealers, 20 units, 30 claims, 15 parts orders). Sign in with one of the test users created by `scripts/entra-setup.sh` (one per role).
 
