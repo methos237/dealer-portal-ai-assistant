@@ -25,9 +25,22 @@ AZF=${FABRIC_AZ_CONFIG_DIR:-$HOME/.azure-fabric}
 log() { echo "==> $*" >&2; }
 die() { echo "error: $*" >&2; exit 1; }
 
-FT=$(AZURE_CONFIG_DIR=$AZF az account get-access-token --resource https://api.fabric.microsoft.com --query accessToken -o tsv) \
-  || die "no Fabric token; run: AZURE_CONFIG_DIR=$AZF az login --allow-no-subscriptions"
-PT=$(AZURE_CONFIG_DIR=$AZF az account get-access-token --resource https://analysis.windows.net/powerbi/api --query accessToken -o tsv)
+# Fabric caller: the trial user's az profile when it exists, otherwise the dealer-portal-m365 app itself
+# (needs the workspace created in the portal with the app as Admin, and the tenant setting
+# "Service principals can create workspaces, connections, and deployment pipelines" for the connection).
+sp_token() {
+  curl -sS -X POST "https://login.microsoftonline.com/$M365_TENANT_ID/oauth2/v2.0/token" \
+    -d "client_id=$M365_CLIENT_ID" -d "client_secret=$M365_CLIENT_SECRET" -d grant_type=client_credentials -d "scope=$1/.default" | jq -r .access_token
+}
+if [ -d "$AZF" ] && AZURE_CONFIG_DIR=$AZF az account show >/dev/null 2>&1; then
+  log "calling Fabric as the az profile in $AZF"
+  FT=$(AZURE_CONFIG_DIR=$AZF az account get-access-token --resource https://api.fabric.microsoft.com --query accessToken -o tsv)
+  PT=$(AZURE_CONFIG_DIR=$AZF az account get-access-token --resource https://analysis.windows.net/powerbi/api --query accessToken -o tsv)
+else
+  log "calling Fabric as dealer-portal-m365 (client credentials)"
+  FT=$(sp_token https://api.fabric.microsoft.com); PT=$(sp_token https://analysis.windows.net/powerbi/api)
+fi
+[ -n "$FT" ] && [ "$FT" != null ] || die "no Fabric token"
 
 # call METHOD URL [json-body]  -> body on stdout; status in $STATUS, Location header in $LOCATION
 call() {
@@ -63,15 +76,14 @@ part() { printf '{"path":"%s","payload":"%s","payloadType":"InlineBase64"}' "$1"
 
 # ---------------------------------------------------------------- capacity + workspace
 CAP_ID=$(call GET /capacities | jq -r '[.value[] | select(.state=="Active")] | (map(select(.sku|startswith("FT"))) + .) | .[0].id // empty')
-[ -n "$CAP_ID" ] || die "no active capacity; start the Fabric trial first (roadmap 6.1)"
-log "capacity $CAP_ID"
+log "capacity ${CAP_ID:-none visible to this caller}"
 
 WS_ID=$(call GET /workspaces | jq -r --arg n "$WS_NAME" '.value[] | select(.displayName==$n) | .id')
 if [ -z "$WS_ID" ]; then
   log "creating workspace $WS_NAME"
-  WS_ID=$(call POST /workspaces "$(jq -n --arg n "$WS_NAME" --arg c "$CAP_ID" '{displayName:$n, capacityId:$c, description:"Dealer portal reporting (Fabric trial)"}')" | jq -r .id)
-  ok "create workspace"
-else
+  WS_ID=$(call POST /workspaces "$(jq -n --arg n "$WS_NAME" --arg c "$CAP_ID" '{displayName:$n, description:"Dealer portal reporting (Fabric trial)"} + (if $c=="" then {} else {capacityId:$c} end)')" | jq -r .id)
+  [[ $STATUS == 2* ]] || die "create workspace -> HTTP $STATUS: $(cat /tmp/fabric-body.json). As a service principal: create workspace '$WS_NAME' on the trial capacity in the Fabric portal and add dealer-portal-m365 as Admin, then rerun."
+elif [ -n "$CAP_ID" ] && [ "$(call GET "/workspaces/$WS_ID" | jq -r .capacityId)" != "$CAP_ID" ]; then
   call POST "/workspaces/$WS_ID/assignToCapacity" "{\"capacityId\":\"$CAP_ID\"}" >/dev/null; ok "assign capacity"
 fi
 log "workspace $WS_ID"
@@ -179,9 +191,7 @@ call POST "$PBI/groups/$WS_ID/datasets/$MODEL_ID/users" "{\"identifier\":\"$SP_O
 [[ $STATUS == 2* ]] || log "could not grant Build over REST (HTTP $STATUS). In the Fabric portal: $MODEL_NAME > Manage permissions > Add user > dealer-portal-m365 > Build."
 
 # ---------------------------------------------------------------- verify: one DAX query as the service principal
-SP_TOKEN=$(curl -sS -X POST "https://login.microsoftonline.com/$M365_TENANT_ID/oauth2/v2.0/token" \
-  -d "client_id=$M365_CLIENT_ID" -d "client_secret=$M365_CLIENT_SECRET" -d grant_type=client_credentials \
-  -d "scope=https://analysis.windows.net/powerbi/api/.default" | jq -r .access_token)
+SP_TOKEN=$(sp_token https://analysis.windows.net/powerbi/api)
 log "executeQueries as dealer-portal-m365:"
 curl -sS -X POST "$PBI/groups/$WS_ID/datasets/$MODEL_ID/executeQueries" -H "Authorization: Bearer $SP_TOKEN" -H "Content-Type: application/json" \
   -d '{"queries":[{"query":"EVALUATE ROW(\"claims\", [Claim Count], \"amount\", [Claim Amount], \"open_orders\", [Open Parts Orders])"}]}' | jq -c . >&2
