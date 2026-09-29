@@ -121,10 +121,12 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Restart apps so Key Vault references and the new image tag take effect
+      # A settings write, not a plain restart: App Service caches a failed Key Vault reference (the role
+      # assignment from Bicep can take minutes to propagate) and only re-resolves on a configuration change.
+      - name: Re-apply settings so Key Vault references resolve and the new image tag takes effect
         run: |
           for app in app-dealer-portal-api app-dealer-portal-assistant app-dealer-portal-web; do
-            az webapp restart -g "$RG" -n "$app" -o none
+            az webapp config appsettings set -g "$RG" -n "$app" --settings DEPLOY_STAMP="${{ github.run_id }}" -o none
           done
       - name: Health
         run: |
