@@ -36,7 +36,7 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: assistant/uv.lock
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: /home/runner/.cache/fastembed
           key: fastembed-bge-small-en-v1.5
@@ -79,7 +79,7 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: assistant/uv.lock
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: /home/runner/.cache/fastembed
           key: fastembed-bge-small-en-v1.5
