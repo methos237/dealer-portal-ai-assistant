@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from app.agent import build_request, mcp_tools, run_turn, source_dict
 from app.auth import User, current_user, portal_api_url
 from app.pii import get_logger
+from app.telemetry import tracer
 from rag import settings
 from rag.embedder import Embedder, get_embedder
 from rag.retrieval import retrieve
@@ -132,9 +133,11 @@ async def chat(
         conn.commit()
 
     history = history_for(conn, conversation_id)
-    hits = await anyio.to_thread.run_sync(
-        lambda: retrieve(conn, emb, body.message, dealer_id=user.dealer_id)
-    )
+    with tracer.start_as_current_span("retrieval") as span:
+        hits = await anyio.to_thread.run_sync(
+            lambda: retrieve(conn, emb, body.message, dealer_id=user.dealer_id)
+        )
+        span.set_attribute("retrieval.hits", len(hits))
     request = build_request(history, body.message, hits)
     log.info(
         "chat conversation=%s dealer=%s question=%s", conversation_id, user.dealer_id, body.message

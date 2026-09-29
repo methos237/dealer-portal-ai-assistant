@@ -8,6 +8,11 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using ModelContextProtocol.AspNetCore;
+using Azure.Monitor.OpenTelemetry.Exporter;
+using Npgsql;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +38,32 @@ builder.Services.AddMemoryCache();
 builder.Services.Configure<PowerBiOptions>(builder.Configuration.GetSection("PowerBi"));
 builder.Services.AddSingleton(PowerBiClient.ClientCredentials(builder.Configuration));
 builder.Services.AddHttpClient<PowerBiClient>(c => c.BaseAddress = new Uri("https://api.powerbi.com/v1.0/myorg/"));
+
+// Tracing is on only when a destination exists: OTLP (Jaeger in compose) and/or Application Insights (Azure).
+// Neither variable set (tests, plain `dotnet run`) means no exporter and no overhead.
+var otlp = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+var appInsights = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+if (otlp is not null || appInsights is not null)
+{
+    builder.Services.AddOpenTelemetry()
+        .ConfigureResource(r => r.AddService("api"))
+        .WithTracing(t =>
+        {
+            t.AddAspNetCoreInstrumentation(o => o.Filter = ctx => ctx.Request.Path != "/health")
+             .AddHttpClientInstrumentation()
+             .AddNpgsql()
+             .AddSource("Experimental.ModelContextProtocol");
+            if (otlp is not null)
+            {
+                t.AddOtlpExporter(o => o.Protocol = OtlpExportProtocol.HttpProtobuf);
+            }
+
+            if (appInsights is not null)
+            {
+                t.AddAzureMonitorTraceExporter(o => o.ConnectionString = appInsights);
+            }
+        });
+}
 
 // Same tools for the in-app assistant and any MCP client (Claude Desktop, Claude Code). Stateless
 // streamable HTTP under the same JWT; [Authorize] on tools filters tools/list and re-checks on call.

@@ -16,6 +16,13 @@ services:
       timeout: 3s
       retries: 10
 
+  # Traces from web, api and assistant (OTLP on 4318); UI on http://localhost:16686
+  jaeger:
+    image: jaegertracing/jaeger:2.14.0
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+
   # Optional: `docker compose --profile local-llm up -d`, then ANTHROPIC_BASE_URL=http://localhost:4000
   # and ANTHROPIC_API_KEY=local for the assistant. Needs `ollama serve` with `ollama pull qwen3` on the host.
   litellm:
@@ -40,6 +47,7 @@ services:
       ConnectionStrings__Portal: Host=postgres;Port=5432;Database=dealer_portal;Username=postgres;Password=postgres
       Database__MigrateOnStart: "true"
       Database__SeedOnStart: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     depends_on:
       postgres: { condition: service_healthy }
 
@@ -53,6 +61,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dealer_portal
       PORTAL_API_URL: http://api:5080
       M365_MCP_URL: http://mcp-m365:8100/mcp
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     volumes:
       - fastembed:/cache
     depends_on:
@@ -76,6 +85,7 @@ services:
       ASSISTANT_URL: http://assistant:8000
       AUTH_URL: http://localhost:3000
       AUTH_TRUST_HOST: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     depends_on: [api, assistant]
 
 volumes:
