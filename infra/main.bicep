@@ -18,6 +18,9 @@ param m365TenantId string
 param m365ClientId string
 param m365Site string
 param m365Library string = 'Documents'
+// Fabric (scripts/fabric-up.sh prints both; empty until Phase 6 ran)
+param powerBiWorkspaceId string = ''
+param powerBiSemanticModelId string = ''
 @description('Budget alerts go here.')
 param budgetEmail string
 
@@ -88,6 +91,8 @@ module apps 'apps.bicep' = {
     m365ClientId: m365ClientId
     m365Site: m365Site
     m365Library: m365Library
+    powerBiWorkspaceId: powerBiWorkspaceId
+    powerBiSemanticModelId: powerBiSemanticModelId
     keyVaultName: keyvault.outputs.vaultName
   }
 }

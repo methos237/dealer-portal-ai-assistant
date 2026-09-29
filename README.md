@@ -34,7 +34,8 @@ Browser (Next.js, PWA)
               Postgres 17 + pgvector  (schemas: portal, rag)
 
 mcp-m365 (TypeScript)  ── Microsoft Graph ──► SharePoint document libraries
-                        ── Power BI REST   ──► Fabric semantic model (DAX)
+                        ── Power BI REST   ──► Fabric semantic model (DAX, Thor.Admin)
+api /reports/summary    ── Power BI REST   ──► same model, DAX filtered to the caller's dealer  ◄── Data Factory copies portal.* daily
 functions/ingest (Python, timer)  ── Graph delta ──► chunk, embed, upsert rag.chunks
 
 Azure (infra/, Bicep): App Service B2 (web, api, assistant containers from GHCR) · Functions Flex (ingest) · Postgres Flexible B1ms · Azure OpenAI (embeddings) · Storage · Key Vault (all secrets) · App Insights · OIDC deploy from GitHub Actions
@@ -154,6 +155,27 @@ Dealers' documents already live in SharePoint. Two pieces connect them: an MCP s
 ```bash
 make m365        # mcp-m365 on :8100 (needs M365_* in .env)
 make functions   # one sync round without the Functions host; `cd functions && func start` runs the timer
+```
+
+## Microsoft Fabric
+
+Reporting does not query the portal database. A Data Factory pipeline copies the `portal` schema into a Fabric lakehouse every night, a Direct Lake semantic model defines the measures once, and both the portal's Reports page and the assistant read that model through Power BI REST with DAX. `fabric/` holds the pipeline and the model as code; `scripts/fabric-up.sh` creates everything over the Fabric REST API.
+
+| Concern | How |
+|---|---|
+| Why a semantic model | The api could `GROUP BY` claims itself. A semantic model puts the business definitions (`Claim Count`, `Claim Amount`, `Avg Days To Close`, `Open Parts Orders`) in one place that Power BI reports, Excel, the portal and the assistant all read identically, and moves analytical load off the transactional database. It is also what a Fabric-shaped employer means by "reporting" |
+| Data flow | Workspace `dealer-portal`, lakehouse `dealer_portal_lh`. Pipeline `copy-portal-tables` (`fabric/pipeline/pipeline-content.json`): six Copy activities, Azure Postgres tables `dealers`, `units`, `claims`, `parts_orders`, `parts_order_lines`, `parts` overwritten into lakehouse Delta tables, daily at 03:00 UTC through the Fabric job scheduler, once on demand by the script |
+| Model | `Dealer Operations`, TMDL under `fabric/semantic-model/`: six tables in Direct Lake mode over the lakehouse SQL endpoint, relationships to `dealers`, four measures. The script fills the SQL endpoint into `expressions.tmdl` and creates or updates the model through the semantic model definition API, so the model is reviewable in a pull request like the rest of the code |
+| Tenancy | The plan was row-level security with the caller's dealer as effective identity. Power BI does not apply RLS when a service principal is the identity on `executeQueries` (documented limitation), so the api builds the tenancy filter into the DAX itself (`FILTER(dealers, dealers[id] = <caller's dealer>)`, `ALL(dealers)` for `Thor.Admin`) from the same token claim the EF queries use. Authorization stays in the api; the model holds no per-user rules |
+| Access | The existing `dealer-portal-m365` app is the Power BI caller too (one secret, already in Key Vault): workspace Viewer plus Build on the model, tenant settings *Service principals can call Fabric public APIs* and *Dataset Execute Queries REST API* on. `PowerBi__WorkspaceId` and `PowerBi__SemanticModelId` switch the feature on; without them `/reports/summary` answers 503 and the Reports page says so |
+| api | `GET /reports/summary`: three EVALUATE queries (totals, claims by month, top parts), one per `executeQueries` call as the endpoint requires, cached five minutes per dealer scope in memory. Tested against recorded responses with a fake handler that also asserts the dealer filter is in every query |
+| web | `/reports`: tiles, claims-by-month bars (inline SVG, no chart library), top parts. Vitest on the data shaping |
+| Assistant | mcp-m365 tool `query_semantic_model(dax)`: a single `EVALUATE` statement only (allowlist), 500 rows max. Offered to `Thor.Admin` conversations only, because the whole mcp-m365 HTTP transport requires that role; a dealer user never sees the tool |
+| Trial constraints | Runs on a 60-day Fabric trial capacity (F64-equivalent) started 2026-09-29; it ends 2026-11-28. After that the lakehouse, pipeline and Direct Lake model become inactive (deleted after seven days unless the workspace moves to a paid capacity), so `/reports/summary` starts failing; unset the two `PowerBi__*` settings to turn reporting off cleanly. The portal, assistant and SharePoint connector do not depend on Fabric |
+| What a paid capacity changes | Nothing in code. Assign the workspace to an F SKU (F2 is about 0.36 USD per hour, pausable) and the same pipeline, model and queries keep working; Copilot and other trial-excluded features become available |
+
+```bash
+scripts/fabric-up.sh   # trial started in the browser first; needs a second az profile for the trial user (see the script header)
 ```
 
 ## Azure

@@ -47,6 +47,7 @@ jobs:
             --parameters imageTag="${{ github.event.workflow_run.head_sha || github.sha }}" \
               webClientId="${{ vars.WEB_CLIENT_ID }}" entraApiScope="${{ vars.ENTRA_API_SCOPE }}" \
               m365Site="${{ vars.M365_SITE }}" budgetEmail="${{ vars.BUDGET_EMAIL }}" \
+              powerBiWorkspaceId="${{ vars.FABRIC_WORKSPACE_ID }}" powerBiSemanticModelId="${{ vars.FABRIC_SEMANTIC_MODEL_ID }}" \
               postgresAdminPassword="${{ secrets.POSTGRES_PASSWORD }}" \
               webClientSecret="${{ secrets.WEB_CLIENT_SECRET }}" authSecret="${{ secrets.AUTH_SECRET }}" \
               anthropicApiKey="${{ secrets.ANTHROPIC_API_KEY }}" m365ClientSecret="${{ secrets.M365_CLIENT_SECRET }}" \
