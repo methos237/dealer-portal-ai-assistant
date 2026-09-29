@@ -17,6 +17,7 @@ import anthropic
 import psycopg
 import yaml
 
+from app.pricing import cost_usd
 from rag.embedder import get_embedder
 from rag.retrieval import retrieve
 from rag.settings import database_url
@@ -30,8 +31,6 @@ THRESHOLDS = {
     "injection": {"pass_rate": 1.0},
     "answer": {"faithfulness_mean": 4.2, "faithfulness_min": 3.0},
 }
-# USD per million tokens: (input, output). Cache reads bill at 0.1x input, cache writes at 1.25x.
-PRICES = {"claude-opus-5": (5.0, 25.0), "claude-sonnet-5": (2.0, 10.0)}
 WRITE_TOOLS = {"draft_claim", "draft_parts_order", "approve_claim"}
 
 
@@ -59,16 +58,7 @@ class Spend:
             bucket[k] = bucket.get(k, 0) + int(v or 0)
 
     def usd(self) -> float:
-        total = 0.0
-        for model, u in self.tokens.items():
-            inp, out = PRICES.get(model, (5.0, 25.0))
-            total += (
-                u.get("input_tokens", 0) * inp
-                + u.get("cache_read_input_tokens", 0) * inp * 0.1
-                + u.get("cache_creation_input_tokens", 0) * inp * 1.25
-                + u.get("output_tokens", 0) * out
-            ) / 1_000_000
-        return total
+        return sum(cost_usd(u, model)["total"] for model, u in self.tokens.items())
 
     def summary(self) -> dict:
         return {"tokens": self.tokens, "usd": round(self.usd(), 4)}
