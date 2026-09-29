@@ -45,3 +45,14 @@ export type NewPartsOrder = {
   unitId: number | null;
   lines: { sku: string; quantity: number }[];
 };
+export type ReportSummary = {
+  dealerId: number | null;
+  totals: {
+    claimCount: number;
+    claimAmount: number;
+    avgDaysToClose: number | null;
+    openPartsOrders: number;
+  };
+  claimsByMonth: { month: string; count: number; amount: number }[];
+  topParts: { sku: string; name: string; quantity: number }[];
+};
