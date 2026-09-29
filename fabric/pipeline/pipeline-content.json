@@ -1,0 +1,391 @@
+{
+  "properties": {
+    "description": "Daily full copy of the portal schema from Azure Postgres into the dealer_portal_lh lakehouse. Placeholders are filled by scripts/fabric-up.sh.",
+    "activities": [
+      {
+        "name": "copy dealers",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "typeProperties": {
+          "source": {
+            "type": "PostgreSqlV2Source",
+            "queryTimeout": "00:10:00",
+            "partitionOption": "None",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "PostgreSqlV2Table",
+              "schema": [],
+              "typeProperties": {
+                "schema": "portal",
+                "table": "dealers"
+              },
+              "externalReferences": {
+                "connection": "${PG_CONNECTION_ID}"
+              }
+            }
+          },
+          "sink": {
+            "type": "LakehouseTableSink",
+            "tableActionOption": "Overwrite",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "LakehouseTable",
+              "schema": [],
+              "linkedService": {
+                "name": "dealer_portal_lh",
+                "properties": {
+                  "annotations": [],
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "workspaceId": "${WORKSPACE_ID}",
+                    "artifactId": "${LAKEHOUSE_ID}",
+                    "rootFolder": "Tables"
+                  }
+                }
+              },
+              "typeProperties": {
+                "table": "dealers"
+              }
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          }
+        }
+      },
+      {
+        "name": "copy units",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "typeProperties": {
+          "source": {
+            "type": "PostgreSqlV2Source",
+            "queryTimeout": "00:10:00",
+            "partitionOption": "None",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "PostgreSqlV2Table",
+              "schema": [],
+              "typeProperties": {
+                "schema": "portal",
+                "table": "units"
+              },
+              "externalReferences": {
+                "connection": "${PG_CONNECTION_ID}"
+              }
+            }
+          },
+          "sink": {
+            "type": "LakehouseTableSink",
+            "tableActionOption": "Overwrite",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "LakehouseTable",
+              "schema": [],
+              "linkedService": {
+                "name": "dealer_portal_lh",
+                "properties": {
+                  "annotations": [],
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "workspaceId": "${WORKSPACE_ID}",
+                    "artifactId": "${LAKEHOUSE_ID}",
+                    "rootFolder": "Tables"
+                  }
+                }
+              },
+              "typeProperties": {
+                "table": "units"
+              }
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          }
+        }
+      },
+      {
+        "name": "copy claims",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "typeProperties": {
+          "source": {
+            "type": "PostgreSqlV2Source",
+            "queryTimeout": "00:10:00",
+            "partitionOption": "None",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "PostgreSqlV2Table",
+              "schema": [],
+              "typeProperties": {
+                "schema": "portal",
+                "table": "claims"
+              },
+              "externalReferences": {
+                "connection": "${PG_CONNECTION_ID}"
+              }
+            }
+          },
+          "sink": {
+            "type": "LakehouseTableSink",
+            "tableActionOption": "Overwrite",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "LakehouseTable",
+              "schema": [],
+              "linkedService": {
+                "name": "dealer_portal_lh",
+                "properties": {
+                  "annotations": [],
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "workspaceId": "${WORKSPACE_ID}",
+                    "artifactId": "${LAKEHOUSE_ID}",
+                    "rootFolder": "Tables"
+                  }
+                }
+              },
+              "typeProperties": {
+                "table": "claims"
+              }
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          }
+        }
+      },
+      {
+        "name": "copy parts_orders",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "typeProperties": {
+          "source": {
+            "type": "PostgreSqlV2Source",
+            "queryTimeout": "00:10:00",
+            "partitionOption": "None",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "PostgreSqlV2Table",
+              "schema": [],
+              "typeProperties": {
+                "schema": "portal",
+                "table": "parts_orders"
+              },
+              "externalReferences": {
+                "connection": "${PG_CONNECTION_ID}"
+              }
+            }
+          },
+          "sink": {
+            "type": "LakehouseTableSink",
+            "tableActionOption": "Overwrite",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "LakehouseTable",
+              "schema": [],
+              "linkedService": {
+                "name": "dealer_portal_lh",
+                "properties": {
+                  "annotations": [],
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "workspaceId": "${WORKSPACE_ID}",
+                    "artifactId": "${LAKEHOUSE_ID}",
+                    "rootFolder": "Tables"
+                  }
+                }
+              },
+              "typeProperties": {
+                "table": "parts_orders"
+              }
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          }
+        }
+      },
+      {
+        "name": "copy parts_order_lines",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "typeProperties": {
+          "source": {
+            "type": "PostgreSqlV2Source",
+            "queryTimeout": "00:10:00",
+            "partitionOption": "None",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "PostgreSqlV2Table",
+              "schema": [],
+              "typeProperties": {
+                "schema": "portal",
+                "table": "parts_order_lines"
+              },
+              "externalReferences": {
+                "connection": "${PG_CONNECTION_ID}"
+              }
+            }
+          },
+          "sink": {
+            "type": "LakehouseTableSink",
+            "tableActionOption": "Overwrite",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "LakehouseTable",
+              "schema": [],
+              "linkedService": {
+                "name": "dealer_portal_lh",
+                "properties": {
+                  "annotations": [],
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "workspaceId": "${WORKSPACE_ID}",
+                    "artifactId": "${LAKEHOUSE_ID}",
+                    "rootFolder": "Tables"
+                  }
+                }
+              },
+              "typeProperties": {
+                "table": "parts_order_lines"
+              }
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          }
+        }
+      },
+      {
+        "name": "copy parts",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "typeProperties": {
+          "source": {
+            "type": "PostgreSqlV2Source",
+            "queryTimeout": "00:10:00",
+            "partitionOption": "None",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "PostgreSqlV2Table",
+              "schema": [],
+              "typeProperties": {
+                "schema": "portal",
+                "table": "parts"
+              },
+              "externalReferences": {
+                "connection": "${PG_CONNECTION_ID}"
+              }
+            }
+          },
+          "sink": {
+            "type": "LakehouseTableSink",
+            "tableActionOption": "Overwrite",
+            "datasetSettings": {
+              "annotations": [],
+              "type": "LakehouseTable",
+              "schema": [],
+              "linkedService": {
+                "name": "dealer_portal_lh",
+                "properties": {
+                  "annotations": [],
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "workspaceId": "${WORKSPACE_ID}",
+                    "artifactId": "${LAKEHOUSE_ID}",
+                    "rootFolder": "Tables"
+                  }
+                }
+              },
+              "typeProperties": {
+                "table": "parts"
+              }
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          }
+        }
+      }
+    ]
+  }
+}

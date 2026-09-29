@@ -37,6 +37,7 @@ az deployment group create -g "$RG" -n dealer-portal --template-file infra/main.
   --parameters infra/dev.parameters.json \
   --parameters imageTag="$TAG" webClientId="$AUTH_MICROSOFT_ENTRA_ID_ID" entraApiScope="$ENTRA_API_SCOPE" \
     m365Site="$M365_SITE" budgetEmail="$AZURE_BUDGET_EMAIL" \
+    powerBiWorkspaceId="${PowerBi__WorkspaceId:-}" powerBiSemanticModelId="${PowerBi__SemanticModelId:-}" \
     postgresAdminPassword="$AZURE_POSTGRES_PASSWORD" webClientSecret="$AUTH_MICROSOFT_ENTRA_ID_SECRET" \
     authSecret="$AUTH_SECRET" anthropicApiKey="$ANTHROPIC_API_KEY" m365ClientSecret="$M365_CLIENT_SECRET" \
   --query properties.outputs -o json > /tmp/dealer-portal-outputs.json
