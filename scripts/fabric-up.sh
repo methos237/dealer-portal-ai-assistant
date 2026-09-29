@@ -154,6 +154,11 @@ while :; do
   esac
 done
 
+# The SQL analytics endpoint learns about new Delta tables asynchronously; Direct Lake framing fails until it has.
+log "refreshing the SQL analytics endpoint metadata"
+call POST "/workspaces/$WS_ID/sqlEndpoints/$SQL_ENDPOINT_ID/refreshMetadata?preview=true" "{}" >/dev/null
+lro "refresh sql endpoint metadata" | jq -c '[.value[]? | {tableName,status}]' >&2 || true
+
 if [ "$(call GET "/workspaces/$WS_ID/items/$PIPE_ID/jobs/Pipeline/schedules" | jq '.value | length')" = 0 ]; then
   log "daily schedule at 03:00 UTC"
   call POST "/workspaces/$WS_ID/items/$PIPE_ID/jobs/Pipeline/schedules" "$(jq -n \
@@ -182,17 +187,49 @@ else
 fi
 log "semantic model $MODEL_ID"
 
-# ---------------------------------------------------------------- dealer-portal-m365 reads the model (api + mcp-m365)
-SP_OID=$(az ad sp show --id "$M365_CLIENT_ID" --query id -o tsv)
-if ! call GET "/workspaces/$WS_ID/roleAssignments" | jq -e --arg id "$SP_OID" '.value[] | select(.principal.id==$id)' >/dev/null; then
-  log "adding dealer-portal-m365 as workspace Viewer"
-  call POST "/workspaces/$WS_ID/roleAssignments" "{\"principal\":{\"id\":\"$SP_OID\",\"type\":\"ServicePrincipal\"},\"role\":\"Viewer\"}" >/dev/null
-  ok "add role assignment"
+# ---------------------------------------------------------------- fixed identity for the model's SQL endpoint reads
+# Unbound, a Direct Lake model reads the SQL endpoint as the querying user (single sign-on), and executeQueries
+# refuses service principals on SSO models (PowerBINotAuthorizedException). Binding the model to a cloud connection
+# that holds the dealer-portal-m365 credentials makes every query read as that app.
+LH_CONN_NAME=dealer-portal-lakehouse-sql
+LH_CONN=$(call GET /connections | jq -r --arg n "$LH_CONN_NAME" '.value[] | select(.displayName==$n) | "\(.id) \(.gatewayId)"')
+if [ -z "$LH_CONN" ]; then
+  log "creating connection $LH_CONN_NAME -> $SQL_ENDPOINT"
+  LH_CONN=$(call POST /connections "$(jq -n --arg n "$LH_CONN_NAME" --arg s "$SQL_ENDPOINT" --arg d "$SQL_ENDPOINT_ID" \
+    --arg t "$M365_TENANT_ID" --arg c "$M365_CLIENT_ID" --arg p "$M365_CLIENT_SECRET" '{
+    connectivityType: "ShareableCloud", displayName: $n,
+    connectionDetails: { type: "SQL", creationMethod: "SQL",
+      parameters: [ {dataType:"Text", name:"server", value:$s}, {dataType:"Text", name:"database", value:$d} ] },
+    privacyLevel: "Organizational",
+    credentialDetails: { singleSignOnType: "None", connectionEncryption: "Encrypted", skipTestConnection: false,
+      credentials: { credentialType: "ServicePrincipal", servicePrincipalClientId: $c, servicePrincipalSecret: $p, tenantId: $t } } }')" \
+    | jq -r '"\(.id) \(.gatewayId)"')
+  ok "create lakehouse connection"
 fi
-# executeQueries needs Build on the model as well as Read. The REST API refuses Build for service principals
-# (documented limitation), so try and otherwise say what to click.
-call POST "$PBI/groups/$WS_ID/datasets/$MODEL_ID/users" "{\"identifier\":\"$SP_OID\",\"principalType\":\"App\",\"datasetUserAccessRight\":\"ReadExplore\"}" >/dev/null
-[[ $(st) == 2* ]] || log "could not grant Build over REST (HTTP $(st)). In the Fabric portal: $MODEL_NAME > Manage permissions > Add user > dealer-portal-m365 > Build."
+call POST "$PBI/groups/$WS_ID/datasets/$MODEL_ID/Default.BindToGateway" \
+  "{\"gatewayObjectId\":\"${LH_CONN#* }\",\"datasourceObjectIds\":[\"${LH_CONN%% *}\"]}" >/dev/null; ok "bind semantic model to connection"
+
+# Framing: Direct Lake loads table metadata on refresh; until then queries fail with PowerBIHttpRequestException.
+call POST "$PBI/groups/$WS_ID/datasets/$MODEL_ID/refreshes" '{"notifyOption":"NoNotification"}' >/dev/null; ok "refresh semantic model"
+for _ in $(seq 1 20); do
+  sleep 10
+  r=$(call GET "$PBI/groups/$WS_ID/datasets/$MODEL_ID/refreshes?\$top=1" | jq -r '.value[0].status')
+  case $r in Completed) log "semantic model framed"; break ;; Failed) die "semantic model refresh failed: $(jq -r '.value[0].serviceExceptionJson' /tmp/fabric-body.json)" ;; esac
+done
+
+# ---------------------------------------------------------------- dealer-portal-m365 reads the model (api + mcp-m365)
+# executeQueries needs Build as well as Read. Build cannot be granted to a service principal over REST (documented),
+# and Viewer alone has no Build, so the app is a workspace Contributor: the smallest role the API can assign that works.
+SP_OID=$(az ad sp show --id "$M365_CLIENT_ID" --query id -o tsv)
+RA=$(call GET "/workspaces/$WS_ID/roleAssignments" | jq -r --arg id "$SP_OID" '.value[] | select(.principal.id==$id) | "\(.id) \(.role)"')
+if [ -z "$RA" ]; then
+  log "adding dealer-portal-m365 as workspace Contributor"
+  call POST "/workspaces/$WS_ID/roleAssignments" "{\"principal\":{\"id\":\"$SP_OID\",\"type\":\"ServicePrincipal\"},\"role\":\"Contributor\"}" >/dev/null
+  ok "add role assignment"
+elif [ "${RA#* }" != Contributor ]; then
+  log "changing dealer-portal-m365 from ${RA#* } to Contributor"
+  call PATCH "/workspaces/$WS_ID/roleAssignments/${RA%% *}" '{"role":"Contributor"}' >/dev/null; ok "update role assignment"
+fi
 
 # ---------------------------------------------------------------- verify: one DAX query as the service principal
 SP_TOKEN=$(sp_token https://analysis.windows.net/powerbi/api)
