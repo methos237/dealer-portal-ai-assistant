@@ -11,3 +11,4 @@ if [ -n "$KV" ]; then
   az keyvault purge -n "$KV" || true
 fi
 echo "done; monthly cost is now zero" >&2
+echo "note: the deploy identity's roles were scoped to $RG and went with it; run scripts/azure-oidc-setup.sh before the next deploy.yml" >&2
