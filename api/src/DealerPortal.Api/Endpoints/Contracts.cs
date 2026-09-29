@@ -24,3 +24,8 @@ public record CreatePartsOrderRequest(
 public record PartsOrderLineRequest(
     [Required, StringLength(32)] string Sku,
     [Range(1, 10_000)] int Quantity);
+
+public record ReportTotalsDto(int ClaimCount, decimal ClaimAmount, decimal? AvgDaysToClose, int OpenPartsOrders);
+public record ClaimsMonthDto(string Month, int Count, decimal Amount);
+public record TopPartDto(string Sku, string Name, int Quantity);
+public record ReportSummaryDto(int? DealerId, ReportTotalsDto Totals, List<ClaimsMonthDto> ClaimsByMonth, List<TopPartDto> TopParts);

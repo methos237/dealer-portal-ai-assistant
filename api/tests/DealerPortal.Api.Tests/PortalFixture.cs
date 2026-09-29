@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using DealerPortal.Api.Reports;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -19,6 +20,9 @@ public sealed class PortalFixture : IAsyncLifetime
 
     public WebApplicationFactory<Program> Factory => _factory ?? throw new InvalidOperationException("not initialized");
 
+    /// <summary>Recorded Power BI responses; tests read the DAX the api sent from <see cref="FakePowerBi.Queries"/>.</summary>
+    public FakePowerBi PowerBi { get; } = new();
+
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
@@ -27,8 +31,12 @@ public sealed class PortalFixture : IAsyncLifetime
             b.UseSetting("ConnectionStrings:Portal", _postgres.GetConnectionString());
             b.UseSetting("Database:MigrateOnStart", "true");
             b.UseSetting("Database:SeedOnStart", "true");
+            b.UseSetting("PowerBi:WorkspaceId", "ws-1");
+            b.UseSetting("PowerBi:SemanticModelId", "model-1");
             b.ConfigureTestServices(services =>
             {
+                services.AddSingleton<PowerBiToken>(_ => Task.FromResult("fake-powerbi-token"));
+                services.AddHttpClient<PowerBiClient>().ConfigurePrimaryHttpMessageHandler(() => PowerBi);
                 services.AddAuthentication(TestAuthHandler.SchemeName)
                     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
             });

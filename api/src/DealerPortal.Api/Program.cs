@@ -2,6 +2,7 @@ using DealerPortal.Api.Auth;
 using DealerPortal.Api.Data;
 using DealerPortal.Api.Endpoints;
 using DealerPortal.Api.Mcp;
+using DealerPortal.Api.Reports;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,13 @@ builder.Services.AddDbContext<PortalDbContext>(o =>
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
 builder.Services.AddAuthorizationBuilder().AddPortalPolicies();
+
+// Reports come from the Fabric semantic model over Power BI REST, as the dealer-portal-m365 app (same
+// credentials as mcp-m365), cached five minutes per dealer scope. Unconfigured = 503 from /reports/summary.
+builder.Services.AddMemoryCache();
+builder.Services.Configure<PowerBiOptions>(builder.Configuration.GetSection("PowerBi"));
+builder.Services.AddSingleton(PowerBiClient.ClientCredentials(builder.Configuration));
+builder.Services.AddHttpClient<PowerBiClient>(c => c.BaseAddress = new Uri("https://api.powerbi.com/v1.0/myorg/"));
 
 // Same tools for the in-app assistant and any MCP client (Claude Desktop, Claude Code). Stateless
 // streamable HTTP under the same JWT; [Authorize] on tools filters tools/list and re-checks on call.
@@ -53,6 +61,7 @@ app.UseMiddleware<CurrentUserMiddleware>();
 
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapPortal();
+app.MapReports();
 app.MapMcp("/mcp").RequireAuthorization(Policies.DealerUser);
 
 app.Run();
