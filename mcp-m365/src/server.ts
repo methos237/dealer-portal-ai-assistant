@@ -7,6 +7,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod";
 import { extractText, isExtractable } from "./extract.js";
 import { GraphError, type DriveItem, type Graph } from "./graph.js";
+import {
+  MAX_ROWS,
+  PowerBiError,
+  validateDax,
+  type PowerBi,
+} from "./powerbi.js";
 
 export const MAX_TEXT_CHARS = 60_000;
 
@@ -29,7 +35,11 @@ const item = (i: DriveItem) => ({
   ...(i.folder ? { children: i.folder.childCount } : {}),
 });
 
-export function createServer(graph: Graph, site: string): McpServer {
+export function createServer(
+  graph: Graph,
+  site: string,
+  powerBi?: PowerBi,
+): McpServer {
   const server = new McpServer({
     name: "dealer-portal-m365",
     version: "0.1.0",
@@ -156,6 +166,44 @@ export function createServer(graph: Graph, site: string): McpServer {
       }
     },
   );
+
+  // Thor.Admin only by construction: the HTTP transport admits M365_ALLOWED_ROLES (default
+  // Thor.Admin) before any tool is reachable, so no per-tool role check here. No RLS: the model is
+  // queried as the service principal, which Power BI cannot put in an RLS role.
+  if (powerBi) {
+    server.registerTool(
+      "query_semantic_model",
+      {
+        title: "Query the Dealer Operations semantic model",
+        description: [
+          "Read-only DAX (a single EVALUATE statement) over the Fabric semantic model 'Dealer Operations'.",
+          "Tables: dealers(id, code, name); units(id, dealer_id, vin, model, delivery_date);",
+          "claims(id, dealer_id, unit_id, description, amount, status, created_at, approved_at);",
+          "parts_orders(id, dealer_id, unit_id, status, total, created_at);",
+          "parts_order_lines(id, parts_order_id, sku, quantity, unit_price); parts(sku, name, unit_price).",
+          "Measures: [Claim Count], [Claim Amount], [Avg Days To Close], [Open Parts Orders].",
+          'Example: EVALUATE SUMMARIZECOLUMNS(dealers[name], "Claims", [Claim Count])',
+        ].join(" "),
+        inputSchema: z.object({ dax: z.string().min(1).max(4000) }),
+        annotations: readOnly,
+      },
+      async ({ dax }) => {
+        const reason = validateDax(dax);
+        if (reason) return fail(reason);
+        try {
+          const { rows } = await powerBi.executeQueries(dax);
+          return ok({
+            rowCount: rows.length,
+            truncated: rows.length > MAX_ROWS,
+            rows: rows.slice(0, MAX_ROWS),
+          });
+        } catch (e) {
+          if (e instanceof PowerBiError) return fail(e.message);
+          throw e;
+        }
+      },
+    );
+  }
 
   return server;
 }
