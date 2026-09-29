@@ -5,8 +5,12 @@ import { Moon, Sun } from "./icons";
 
 type Theme = "light" | "dark";
 
+const media = () => matchMedia("(prefers-color-scheme: dark)");
+
+/** Saved choice on <html data-theme> wins; otherwise the OS setting, as the CSS light-dark() sees it. */
 const read = (): Theme =>
-  document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  (document.documentElement.dataset.theme as Theme | undefined) ??
+  (media().matches ? "dark" : "light");
 
 function subscribe(onChange: () => void) {
   const observer = new MutationObserver(onChange);
@@ -14,7 +18,12 @@ function subscribe(onChange: () => void) {
     attributes: true,
     attributeFilter: ["data-theme"],
   });
-  return () => observer.disconnect();
+  const m = media();
+  m.addEventListener("change", onChange);
+  return () => {
+    observer.disconnect();
+    m.removeEventListener("change", onChange);
+  };
 }
 
 /** Flips <html data-theme>; the choice persists in localStorage and overrides the OS setting. */

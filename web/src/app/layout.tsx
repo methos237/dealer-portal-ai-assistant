@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Poppins } from "next/font/google";
+import Script from "next/script";
 import { SerwistProvider } from "@serwist/turbopack/react";
 import "./globals.css";
 
@@ -24,8 +25,8 @@ export const viewport: Viewport = {
   ],
 };
 
-/* Runs before paint so the first frame already has the right theme. */
-const themeScript = `(function(){try{var t=localStorage.getItem("theme");var d=t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}})()`;
+/* CSS light-dark() follows the OS on its own; this only re-applies a saved override early. */
+const themeScript = `try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}`;
 
 export default function RootLayout({
   children,
@@ -38,10 +39,10 @@ export default function RootLayout({
       className={`${inter.variable} ${poppins.variable}`}
       suppressHydrationWarning
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-      </head>
       <body className="min-h-screen bg-bg text-fg">
+        <Script id="theme" strategy="beforeInteractive">
+          {themeScript}
+        </Script>
         <SerwistProvider swUrl="/serwist/sw.js" reloadOnOnline={false}>
           {children}
         </SerwistProvider>

@@ -1,67 +1,43 @@
 @import "tailwindcss";
 
-/* Theme switches on <html data-theme>; the inline script in layout.tsx sets it before paint. */
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
-
-/* Palette: Thor Motor Coach web tokens (warm neutrals, cobalt primary). */
+/* Palette: Thor Motor Coach web tokens (warm neutrals, cobalt primary).
+   light-dark() follows the OS until <html data-theme> pins a choice (ThemeToggle). */
 :root {
-  color-scheme: light;
-  --bg: #f5f4f3;
-  --surface: #ffffff;
-  --surface-2: #eae8e7;
-  --border: #dbd9d8;
+  color-scheme: light dark;
+  --bg: light-dark(#f5f4f3, #1b1918);
+  --surface: light-dark(#ffffff, #262422);
+  --surface-2: light-dark(#eae8e7, #3b3a34);
+  --border: light-dark(#dbd9d8, #3d3b37);
   --border-strong: #94928f;
-  --fg: #1b1918;
-  --fg-muted: #595853;
-  --fg-subtle: #777672;
+  --fg: light-dark(#1b1918, #ffffff);
+  --fg-muted: light-dark(#595853, #dbd9d8);
+  --fg-subtle: light-dark(#777672, #a8a6a2);
   --primary: #3f5efb;
-  --primary-hover: #324eda;
-  --primary-soft: #d0d8ff;
-  --primary-ink: #192a81;
-  --link: #324eda;
-  --success: #008556;
-  --success-soft: #d6f3e2;
-  --success-ink: #086343;
+  --primary-hover: light-dark(#324eda, #5b75fd);
+  --primary-soft: light-dark(#d0d8ff, #192a81);
+  --primary-ink: light-dark(#192a81, #d0d8ff);
+  --link: light-dark(#324eda, #889bfd);
+  --success: light-dark(#008556, #0b9061);
+  --success-soft: light-dark(#d6f3e2, #086343);
+  --success-ink: light-dark(#086343, #d6f3e2);
   --warn: #ff6f00;
-  --warn-soft: #ffe8d1;
-  --warn-ink: #8a3c00;
-  --error: #de1c22;
-  --error-soft: #ffd6d7;
-  --error-ink: #9f1b1f;
-  --ink: #1b1918;
-  --ink-fg: #ffffff;
-  --shadow-bar: 0 8px 24px -12px rgba(27, 25, 24, 0.35);
-  --shadow-card: 0 1px 2px rgba(27, 25, 24, 0.06);
+  --warn-soft: light-dark(#ffe8d1, #6b2f00);
+  --warn-ink: light-dark(#8a3c00, #ffd9b3);
+  --error: light-dark(#de1c22, #ee2c32);
+  --error-soft: light-dark(#ffd6d7, #9f1b1f);
+  --error-ink: light-dark(#9f1b1f, #ffd6d7);
+  --ink: light-dark(#1b1918, #ffffff);
+  --ink-fg: light-dark(#ffffff, #1b1918);
+  --shadow-ink: light-dark(rgba(27, 25, 24, 0.35), rgba(0, 0, 0, 0.7));
+  --shadow-ink-soft: light-dark(rgba(27, 25, 24, 0.06), rgba(0, 0, 0, 0.4));
+  --shadow-bar: 0 8px 24px -12px var(--shadow-ink);
+  --shadow-card: 0 1px 2px var(--shadow-ink-soft);
 }
-
+[data-theme="light"] {
+  color-scheme: light;
+}
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #1b1918;
-  --surface: #262422;
-  --surface-2: #3b3a34;
-  --border: #3d3b37;
-  --border-strong: #94928f;
-  --fg: #ffffff;
-  --fg-muted: #dbd9d8;
-  --fg-subtle: #a8a6a2;
-  --primary: #3f5efb;
-  --primary-hover: #5b75fd;
-  --primary-soft: #192a81;
-  --primary-ink: #d0d8ff;
-  --link: #889bfd;
-  --success: #0b9061;
-  --success-soft: #086343;
-  --success-ink: #d6f3e2;
-  --warn: #ff6f00;
-  --warn-soft: #6b2f00;
-  --warn-ink: #ffd9b3;
-  --error: #ee2c32;
-  --error-soft: #9f1b1f;
-  --error-ink: #ffd6d7;
-  --ink: #ffffff;
-  --ink-fg: #1b1918;
-  --shadow-bar: 0 8px 24px -12px rgba(0, 0, 0, 0.7);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 @theme inline {
