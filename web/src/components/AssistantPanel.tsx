@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { readSse } from "@/lib/sse";
 import { approveClaim, createClaim, createPartsOrder } from "@/lib/actions";
 import type { NewClaim, NewPartsOrder } from "@/lib/types";
+import { ArrowRight, Check, Close } from "./icons";
 
 type Citation = {
   cited_text: string;
@@ -259,20 +260,23 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
   }
 
   return (
-    <div className="grid grid-cols-[220px_1fr] gap-6">
-      <aside>
-        <button
-          onClick={reset}
-          className="w-full rounded bg-blue-700 px-3 py-2 text-sm text-white"
-        >
+    <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+      <aside className="lg:sticky lg:top-24 lg:self-start">
+        <h1 className="page-title">Assistant</h1>
+        <p className="mt-1 text-sm text-fg-muted">
+          Manuals, bulletins, warranty rules, parts. Every answer cites its
+          source.
+        </p>
+        <button onClick={reset} className="btn btn-primary mt-5 w-full">
           New conversation
         </button>
-        <ul className="mt-3 space-y-1 text-sm">
+        <ul className="mt-4 max-h-[50vh] space-y-0.5 overflow-y-auto text-sm">
           {conversations.map((c) => (
             <li key={c.id}>
               <button
                 onClick={() => open(c.id)}
-                className={`w-full truncate rounded px-2 py-1 text-left hover:bg-slate-100 ${c.id === conversationId ? "bg-slate-200" : ""}`}
+                aria-current={c.id === conversationId ? "true" : undefined}
+                className={`w-full truncate rounded-full px-3 py-1.5 text-left transition-colors hover:bg-surface-2 ${c.id === conversationId ? "bg-surface-2 font-medium" : "text-fg-muted"}`}
               >
                 {c.title || "Untitled"}
               </button>
@@ -280,105 +284,174 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
           ))}
         </ul>
       </aside>
-      <section className="flex min-h-[70vh] flex-col rounded border bg-white">
+      <section className="card flex min-h-[70vh] flex-col overflow-hidden">
         <div
-          className="flex-1 space-y-4 overflow-y-auto p-4"
+          className="flex-1 space-y-5 overflow-y-auto p-4 md:p-6"
           data-testid="messages"
         >
           {messages.length === 0 && (
-            <p className="text-sm text-slate-500">
-              Ask about owner manuals, service bulletins, warranty rules or
-              parts. Answers cite their source.
-            </p>
+            <div className="m-auto max-w-md py-16 text-center">
+              <h2 className="text-xl">What do you need to know?</h2>
+              <p className="mt-2 text-sm text-fg-muted">
+                Try “What is the tire pressure spec for a 2024 Axis?” or “Draft
+                a claim for the slide-out motor on 1THRA24X0RN000001”.
+              </p>
+            </div>
           )}
-          {messages.map((m, i) => (
-            <div key={i} className={m.role === "user" ? "text-right" : ""}>
-              <div
-                className={`inline-block max-w-[80%] whitespace-pre-wrap rounded px-3 py-2 text-left text-sm ${m.role === "user" ? "bg-blue-50" : "bg-slate-50"}`}
-                data-testid={`message-${m.role}`}
-              >
-                {m.blocks.map((b, j) => (
-                  <span key={j}>
-                    {b.text}
-                    {b.citations.map((c, k) => (
-                      <button
-                        key={k}
-                        type="button"
-                        title={c.cited_text}
-                        onClick={() => c.source && showChunk(c.source.chunk_id)}
-                        className="ml-1 rounded-full border border-blue-300 bg-white px-1.5 text-xs text-blue-800 align-super hover:bg-blue-50"
-                        data-testid="citation"
-                      >
-                        {k + 1}
-                      </button>
-                    ))}
-                  </span>
-                ))}
-                {m.tools && m.tools.length > 0 && (
-                  <ul
-                    className="mt-2 space-y-0.5 text-xs text-slate-500"
-                    data-testid="tools"
-                  >
-                    {m.tools.map((t, k) => (
-                      <li key={k}>
-                        {t.is_error ? "✕" : "✓"} <code>{t.name}</code>{" "}
-                        {JSON.stringify(t.input)}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {m.drafts?.map((d, k) => (
-                  <div
-                    key={k}
-                    className="mt-2 rounded border border-amber-300 bg-amber-50 p-3 text-sm"
-                    data-testid="confirm-card"
-                  >
-                    <div className="font-medium text-amber-900">
-                      Confirm: {d.kind.replace("_", " ")}
+          {messages.map((m, i) => {
+            const sources = uniqueBy(
+              m.blocks.flatMap((b) => b.citations),
+              sourceKey,
+            );
+            return (
+              <div key={i} className={m.role === "user" ? "text-right" : ""}>
+                <div
+                  className={`inline-block max-w-[85%] text-left text-[15px] leading-relaxed whitespace-pre-wrap md:max-w-[75%] ${m.role === "user" ? "rounded-2xl rounded-br-md bg-ink px-4 py-2.5 text-ink-fg" : ""}`}
+                  data-testid={`message-${m.role}`}
+                >
+                  {m.blocks.map((b, j) => (
+                    <span key={j}>
+                      {b.text}
+                      {uniqueBy(b.citations, sourceKey).map((c) => {
+                        const n =
+                          sources.findIndex(
+                            (s) => sourceKey(s) === sourceKey(c),
+                          ) + 1;
+                        return (
+                          <button
+                            key={sourceKey(c)}
+                            type="button"
+                            title={c.cited_text}
+                            onClick={() =>
+                              c.source && showChunk(c.source.chunk_id)
+                            }
+                            className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-soft px-1.5 align-super text-[11px] font-medium text-primary-ink hover:bg-primary hover:text-white"
+                            data-testid="citation"
+                          >
+                            {n}
+                          </button>
+                        );
+                      })}
+                    </span>
+                  ))}
+                  {sources.length > 0 && (
+                    <ol
+                      className="mt-3 space-y-1 border-t border-border pt-3 text-xs text-fg-muted"
+                      data-testid="sources"
+                    >
+                      {sources.map((c, k) => (
+                        <li key={sourceKey(c)} className="flex gap-2">
+                          <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary-soft px-1.5 text-[11px] font-medium text-primary-ink">
+                            {k + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              c.source && showChunk(c.source.chunk_id)
+                            }
+                            className="text-left hover:text-fg hover:underline"
+                          >
+                            {c.source?.title ?? c.document_title}
+                            {c.source?.metadata.section
+                              ? ` · ${c.source.metadata.section}`
+                              : ""}
+                            {c.source?.metadata.page
+                              ? ` · page ${c.source.metadata.page}`
+                              : ""}
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  {m.tools && m.tools.length > 0 && (
+                    <ul
+                      className="mt-3 space-y-1 text-xs text-fg-muted"
+                      data-testid="tools"
+                    >
+                      {m.tools.map((t, k) => (
+                        <li key={k} className="flex items-start gap-1.5">
+                          {t.is_error ? (
+                            <Close
+                              width={14}
+                              height={14}
+                              className="mt-0.5 shrink-0 text-error"
+                            />
+                          ) : (
+                            <Check
+                              width={14}
+                              height={14}
+                              className="mt-0.5 shrink-0 text-success"
+                            />
+                          )}
+                          <span>
+                            <code className="font-medium text-fg">
+                              {t.name}
+                            </code>{" "}
+                            <span className="font-mono">
+                              {JSON.stringify(t.input)}
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {m.drafts?.map((d, k) => (
+                    <div
+                      key={k}
+                      className="mt-3 rounded-2xl bg-warn-soft p-4 text-sm text-warn-ink"
+                      data-testid="confirm-card"
+                    >
+                      <div className="font-heading font-semibold">
+                        Confirm {d.kind.replace("_", " ")}
+                      </div>
+                      <p className="mt-1">{d.summary}</p>
+                      {d.status === "pending" && (
+                        <button
+                          type="button"
+                          onClick={() => confirm(i, k)}
+                          className="btn btn-ink btn-sm mt-3"
+                        >
+                          Confirm and send
+                        </button>
+                      )}
+                      {d.status !== "pending" && (
+                        <p
+                          className={`mt-2 text-xs font-medium ${d.status === "failed" ? "text-error-ink" : "text-success-ink"}`}
+                        >
+                          {d.result ??
+                            (d.status === "done" ? "Confirmed." : "")}
+                        </p>
+                      )}
                     </div>
-                    <p className="mt-1">{d.summary}</p>
-                    {d.status === "pending" && (
-                      <button
-                        type="button"
-                        onClick={() => confirm(i, k)}
-                        className="mt-2 rounded bg-amber-700 px-3 py-1 text-white hover:bg-amber-800"
-                      >
-                        Confirm and send
-                      </button>
-                    )}
-                    {d.status !== "pending" && (
-                      <p
-                        className={`mt-1 text-xs ${d.status === "failed" ? "text-red-700" : "text-green-800"}`}
-                      >
-                        {d.result ?? (d.status === "done" ? "Confirmed." : "")}
-                      </p>
-                    )}
+                  ))}
+                  {m.stopReason === "refusal" && (
+                    <p className="mt-2 text-xs text-warn-ink">
+                      The assistant declined to answer this request.
+                    </p>
+                  )}
+                  {m.stopReason === "max_tokens" && (
+                    <p className="mt-2 text-xs text-warn-ink">
+                      The answer was cut off at the length limit.
+                    </p>
+                  )}
+                </div>
+                {m.usage && (
+                  <div
+                    className="mt-1 text-xs text-fg-subtle tabular-nums"
+                    data-testid="usage"
+                  >
+                    {m.usage.input_tokens} in · {m.usage.output_tokens} out ·{" "}
+                    {m.usage.cache_read_input_tokens ?? 0} cached
                   </div>
-                ))}
-                {m.stopReason === "refusal" && (
-                  <p className="mt-1 text-xs text-amber-800">
-                    The assistant declined to answer this request.
-                  </p>
-                )}
-                {m.stopReason === "max_tokens" && (
-                  <p className="mt-1 text-xs text-amber-800">
-                    The answer was cut off at the length limit.
-                  </p>
                 )}
               </div>
-              {m.usage && (
-                <div
-                  className="mt-0.5 text-xs text-slate-400"
-                  data-testid="usage"
-                >
-                  {m.usage.input_tokens} in · {m.usage.output_tokens} out ·{" "}
-                  {m.usage.cache_read_input_tokens ?? 0} cached
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
           {cost && (
-            <p className="text-xs text-slate-500" data-testid="cost">
+            <p
+              className="text-xs text-fg-subtle tabular-nums"
+              data-testid="cost"
+            >
               Conversation cost: ${cost.cost_usd.total.toFixed(4)} ·{" "}
               {cost.turns} {cost.turns === 1 ? "turn" : "turns"} · {cost.model}
             </p>
@@ -386,23 +459,30 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
           <div ref={bottom} />
         </div>
         {error && (
-          <p role="alert" className="border-t px-4 py-2 text-sm text-red-700">
+          <p
+            role="alert"
+            className="border-t border-border bg-error-soft px-4 py-2 text-sm text-error-ink"
+          >
             {error}
           </p>
         )}
-        <form onSubmit={send} className="flex gap-2 border-t p-3">
+        <form
+          onSubmit={send}
+          className="flex gap-2 border-t border-border bg-surface p-3"
+        >
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask the assistant"
+            placeholder={busy ? "Thinking…" : "Ask the assistant"}
             aria-label="Message"
-            className="flex-1 rounded border px-3 py-2 text-sm"
+            className="field flex-1 rounded-full px-5"
           />
           <button
-            disabled={busy}
-            className="rounded bg-blue-700 px-4 py-2 text-sm text-white disabled:opacity-50"
+            disabled={busy || !input.trim()}
+            aria-label="Send"
+            className="btn btn-primary size-11 shrink-0 p-0"
           >
-            Send
+            <ArrowRight />
           </button>
         </form>
       </section>
@@ -410,12 +490,13 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
         <div
           role="dialog"
           aria-label="Source"
-          className="fixed inset-y-0 right-0 w-[420px] overflow-y-auto border-l bg-white p-4 shadow-xl"
+          className="card fixed inset-y-3 right-3 z-30 w-[min(440px,calc(100vw-1.5rem))] overflow-y-auto p-5 shadow-bar"
         >
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="font-semibold">{chunk.title}</h2>
-              <p className="text-xs text-slate-500">
+              <span className="tag tag-primary">Source</span>
+              <h2 className="mt-2 text-lg">{chunk.title}</h2>
+              <p className="mt-1 text-xs text-fg-muted">
                 {chunk.path}
                 {chunk.metadata.section ? ` · ${chunk.metadata.section}` : ""}
                 {chunk.metadata.page ? ` · page ${chunk.metadata.page}` : ""}
@@ -424,18 +505,27 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
             <button
               onClick={() => setChunk(null)}
               aria-label="Close"
-              className="px-2"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-fg-muted hover:bg-surface-2 hover:text-fg"
             >
-              ✕
+              <Close />
             </button>
           </div>
-          <pre className="mt-3 whitespace-pre-wrap font-sans text-sm">
+          <pre className="mt-4 border-t border-border pt-4 font-sans text-sm leading-relaxed whitespace-pre-wrap">
             {chunk.text}
           </pre>
         </div>
       )}
     </div>
   );
+}
+
+/** One footnote per distinct source; the API emits a citation per cited sentence. */
+const sourceKey = (c: Citation) =>
+  c.source ? `chunk:${c.source.chunk_id}` : `doc:${c.document_title}`;
+
+function uniqueBy<T>(items: T[], key: (t: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter((t) => !seen.has(key(t)) && seen.add(key(t)));
 }
 
 function patchLast(messages: Message[], fn: (b: Block) => Block): Message[] {

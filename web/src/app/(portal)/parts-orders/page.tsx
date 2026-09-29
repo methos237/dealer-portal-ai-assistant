@@ -1,45 +1,69 @@
 import Link from "next/link";
+import { OrderStatusTag } from "@/components/StatusTag";
 import { listPartsOrders } from "@/lib/api";
 
 export const metadata = { title: "Parts orders" };
+
+const money = (v: number) =>
+  v.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
 export default async function PartsOrdersPage() {
   const orders = await listPartsOrders();
   return (
     <>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Parts orders</h1>
-        <Link
-          href="/parts-orders/new"
-          className="rounded bg-blue-700 px-4 py-2 text-white"
-        >
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="page-title">Parts orders</h1>
+          <p className="mt-1 text-fg-muted">
+            {orders.length} {orders.length === 1 ? "order" : "orders"}
+            {" · "}
+            {money(orders.reduce((s, o) => s + o.total, 0))}
+          </p>
+        </div>
+        <Link href="/parts-orders/new" className="btn btn-primary">
           New order
         </Link>
       </div>
-      <table className="mt-4 w-full border-collapse bg-white text-sm">
-        <thead>
-          <tr className="border-b text-left text-slate-500">
-            <th className="p-2">#</th>
-            <th className="p-2">Lines</th>
-            <th className="p-2 text-right">Total</th>
-            <th className="p-2">Status</th>
-            <th className="p-2">Placed</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map((o) => (
-            <tr key={o.id} className="border-b">
-              <td className="p-2">{o.id}</td>
-              <td className="p-2">
-                {o.lines.map((l) => `${l.quantity}× ${l.sku}`).join(", ")}
-              </td>
-              <td className="p-2 text-right">{o.total.toFixed(2)}</td>
-              <td className="p-2">{o.status}</td>
-              <td className="p-2">{o.createdAt.slice(0, 10)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="card mt-6 overflow-x-auto">
+        {orders.length === 0 ? (
+          <p className="p-6 text-sm text-fg-muted">
+            No parts orders yet. Start one for stock or for a specific unit.
+          </p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th className="num">#</th>
+                <th>Lines</th>
+                <th className="num">Total</th>
+                <th>Status</th>
+                <th>Placed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((o) => (
+                <tr key={o.id}>
+                  <td className="num text-fg-muted">{o.id}</td>
+                  <td>
+                    <ul className="flex flex-wrap gap-1.5">
+                      {o.lines.map((l) => (
+                        <li key={l.sku} className="tag font-mono">
+                          {l.quantity} × {l.sku}
+                        </li>
+                      ))}
+                    </ul>
+                  </td>
+                  <td className="num">{money(o.total)}</td>
+                  <td>
+                    <OrderStatusTag status={o.status} />
+                  </td>
+                  <td className="text-fg-muted">{o.createdAt.slice(0, 10)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </>
   );
 }

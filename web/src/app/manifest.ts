@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Units, warranty claims and parts orders for THOR dealers.",
     start_url: "/dashboard",
     display: "standalone",
-    background_color: "#f8fafc",
-    theme_color: "#1e3a5f",
+    background_color: "#f5f4f3",
+    theme_color: "#1b1918",
     icons: [
       {
         src: "/icons/icon-192.png",
