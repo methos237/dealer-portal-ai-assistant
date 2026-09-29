@@ -124,7 +124,8 @@ module keyvaultAccess 'keyvault-access.bicep' = {
 
 module fabric 'fabric.bicep' = {
   name: 'fabric'
-  params: { location: location, adminUpns: fabricAdminUpns }
+  // this free-trial subscription has Fabric quota (4 CU) in centralus only, none in eastus2
+  params: { location: computeLocation, adminUpns: fabricAdminUpns }
 }
 
 module budget 'budget.bicep' = {
