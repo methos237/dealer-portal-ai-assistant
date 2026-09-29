@@ -159,7 +159,7 @@ make functions   # one sync round without the Functions host; `cd functions && f
 
 ## Microsoft Fabric
 
-Reporting does not query the portal database. A Data Factory pipeline copies the `portal` schema into a Fabric lakehouse every night, a Direct Lake semantic model defines the measures once, and both the portal's Reports page and the assistant read that model through Power BI REST with DAX. `fabric/` holds the pipeline and the model as code; `scripts/fabric-up.sh` creates everything over the Fabric REST API.
+Reporting does not query the portal database. A Data Factory pipeline copies the `portal` schema into a Fabric lakehouse every night, a Direct Lake semantic model defines the measures once, and both the portal's Reports page and the assistant read that model through Power BI REST with DAX. `fabric/` holds the pipeline and the model as code; `infra/fabric.bicep` provides the capacity and `scripts/fabric-up.sh` creates everything else over the Fabric REST API.
 
 | Concern | How |
 |---|---|
@@ -171,11 +171,11 @@ Reporting does not query the portal database. A Data Factory pipeline copies the
 | api | `GET /reports/summary`: three EVALUATE queries (totals, claims by month, top parts), one per `executeQueries` call as the endpoint requires, cached five minutes per dealer scope in memory. Tested against recorded responses with a fake handler that also asserts the dealer filter is in every query |
 | web | `/reports`: tiles, claims-by-month bars (inline SVG, no chart library), top parts. Vitest on the data shaping |
 | Assistant | mcp-m365 tool `query_semantic_model(dax)`: a single `EVALUATE` statement only (allowlist), 500 rows max. Offered to `Thor.Admin` conversations only, because the whole mcp-m365 HTTP transport requires that role; a dealer user never sees the tool |
-| Trial constraints | Runs on a 60-day Fabric trial capacity (F64-equivalent) started 2026-09-29; it ends 2026-11-27. After that the lakehouse, pipeline and Direct Lake model become inactive (deleted after seven days unless the workspace moves to a paid capacity), so `/reports/summary` starts failing; unset the two `PowerBi__*` settings to turn reporting off cleanly. The portal, assistant and SharePoint connector do not depend on Fabric |
-| What a paid capacity changes | Nothing in code. Assign the workspace to an F SKU (F2 is about 0.36 USD per hour, pausable) and the same pipeline, model and queries keep working; Copilot and other trial-excluded features become available |
+| Capacity | A Fabric trial was not available on this tenant, so `infra/fabric.bicep` creates a pay-as-you-go **F2** capacity (about 0.36 USD per hour while running, storage only while suspended) in the same resource group; `azure-down.sh` removes it with everything else. Suspend it between demos: `az resource invoke-action --action suspend --ids <capacity id>` (`resume` to bring it back; the semantic model and pipeline are unavailable while suspended, and `/reports/summary` returns an error, so unset the two `PowerBi__*` settings if it stays down) |
+| What a trial or bigger capacity changes | Nothing in code. Assign the workspace to another capacity (trial, F64) and the same pipeline, model and queries keep working; Copilot and other F64-only features become available |
 
 ```bash
-scripts/fabric-up.sh   # trial started in the browser first; needs a second az profile for the trial user (see the script header)
+scripts/fabric-up.sh   # after azure-up: workspace, lakehouse, connection, pipeline run + schedule, semantic model, app access
 ```
 
 ## Azure
@@ -188,7 +188,7 @@ Everything runs on Azure from one Bicep template, deployed by GitHub Actions wit
 | What Bicep manages | `infra/main.bicep` (resource-group scope) composes `storage`, `monitoring`, `postgres`, `openai`, `keyvault`, `apps`, `functions`, `keyvault-access`, `budget`. Every secret (Postgres password, web client secret, Auth.js secret, Anthropic key, M365 client secret, the Azure OpenAI key read at deploy time) lands in Key Vault; app settings hold Key Vault references and the apps' system identities get *Key Vault Secrets User*. Non-secret ids live in `infra/dev.parameters.json`; secrets arrive as parameters from GitHub secrets or `.env` |
 | OIDC over secrets | `scripts/azure-oidc-setup.sh` creates `dealer-portal-deploy` with federated credentials for `master` pushes and pull requests, scoped to the resource group (Contributor plus RBAC Administrator, needed for the role assignments in Bicep). `infra.yml` runs `what-if` on pull requests; `deploy.yml` runs after `images.yml` publishes the master images: Bicep, `rag.migrate` + `rag.ingest` against Azure Postgres with Azure OpenAI embeddings, Function zip deploy, app restarts, health checks |
 | Two embedding indexes | Local and CI use `fastembed` (384 dims, free). Azure uses `text-embedding-3-small` (1536 dims) and its own index, built by `deploy.yml`; `rag.meta` records the provider so an index is never queried with the wrong embedder |
-| Cost | About 0.07 USD per hour while up (App Service B2 about 26 USD/month, Postgres B1ms about 12.60 USD/month, the rest near zero at demo traffic). `scripts/azure-down.sh` deletes the resource group and purges the vault; the demo is down when nobody is looking at it. The deploy identity's roles are scoped to that group, so `scripts/azure-oidc-setup.sh` runs again before the next deploy |
+| Cost | About 0.07 USD per hour while up (App Service B2 about 26 USD/month, Postgres B1ms about 12.60 USD/month, the rest near zero at demo traffic), plus 0.36 USD per hour while the Fabric F2 capacity is running (suspend it between demos). `scripts/azure-down.sh` deletes the resource group and purges the vault; the demo is down when nobody is looking at it. The deploy identity's roles are scoped to that group, so `scripts/azure-oidc-setup.sh` runs again before the next deploy |
 
 ```bash
 scripts/entra-setup.sh          # app registrations incl. the Azure redirect URI
