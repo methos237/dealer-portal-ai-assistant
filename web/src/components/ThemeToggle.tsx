@@ -26,7 +26,7 @@ function subscribe(onChange: () => void) {
   };
 }
 
-/** Flips <html data-theme>; the choice persists in localStorage and overrides the OS setting. */
+/** Flips <html data-theme>; the cookie lets the server render the choice on the next load. */
 export function ThemeToggle() {
   const theme = useSyncExternalStore(subscribe, read, () => "light" as Theme);
   const dark = theme === "dark";
@@ -34,7 +34,7 @@ export function ThemeToggle() {
   function toggle() {
     const next: Theme = dark ? "light" : "dark";
     document.documentElement.dataset.theme = next;
-    localStorage.setItem("theme", next);
+    document.cookie = `theme=${next}; path=/; max-age=31536000; SameSite=Lax`;
   }
 
   return (

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Poppins } from "next/font/google";
-import Script from "next/script";
+import { cookies } from "next/headers";
 import { SerwistProvider } from "@serwist/turbopack/react";
 import "./globals.css";
 
@@ -25,24 +25,20 @@ export const viewport: Viewport = {
   ],
 };
 
-/* CSS light-dark() follows the OS on its own; this only re-applies a saved override early. */
-const themeScript = `try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}`;
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // ThemeToggle writes the cookie; rendering it here means no flash and no client script.
+  const theme = (await cookies()).get("theme")?.value;
   return (
     <html
       lang="en"
       className={`${inter.variable} ${poppins.variable}`}
-      suppressHydrationWarning
+      data-theme={theme === "dark" || theme === "light" ? theme : undefined}
     >
       <body className="min-h-screen bg-bg text-fg">
-        <Script id="theme" strategy="beforeInteractive">
-          {themeScript}
-        </Script>
         <SerwistProvider swUrl="/serwist/sw.js" reloadOnOnline={false}>
           {children}
         </SerwistProvider>
