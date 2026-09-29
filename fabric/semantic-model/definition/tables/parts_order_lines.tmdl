@@ -1,0 +1,47 @@
+table parts_order_lines
+	lineageTag: f9df2cf5-948c-4356-8188-75e271548f2f
+	sourceLineageTag: [dbo].[parts_order_lines]
+
+	column id
+		dataType: int64
+		isHidden
+		lineageTag: 7479ee58-66be-453d-bf5a-7d9e2d555c6e
+		sourceLineageTag: id
+		summarizeBy: none
+		sourceColumn: id
+
+	column parts_order_id
+		dataType: int64
+		isHidden
+		lineageTag: af9789c1-c63b-433f-890f-02b3b4232930
+		sourceLineageTag: parts_order_id
+		summarizeBy: none
+		sourceColumn: parts_order_id
+
+	column sku
+		dataType: string
+		lineageTag: b2196fbd-e3a6-4d28-9ef2-878368851fc1
+		sourceLineageTag: sku
+		summarizeBy: none
+		sourceColumn: sku
+
+	column quantity
+		dataType: int64
+		lineageTag: b950ffd4-b541-4758-a612-d1c61b1fcd58
+		sourceLineageTag: quantity
+		summarizeBy: none
+		sourceColumn: quantity
+
+	column unit_price
+		dataType: decimal
+		lineageTag: d01c778c-3402-418e-a093-d040a2e314a7
+		sourceLineageTag: unit_price
+		summarizeBy: none
+		sourceColumn: unit_price
+
+	partition parts_order_lines = entity
+		mode: directLake
+		source
+			entityName: parts_order_lines
+			schemaName: dbo
+			expressionSource: DatabaseQuery

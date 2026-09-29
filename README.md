@@ -34,7 +34,8 @@ Browser (Next.js, PWA)
               Postgres 17 + pgvector  (schemas: portal, rag)
 
 mcp-m365 (TypeScript)  ── Microsoft Graph ──► SharePoint document libraries
-                        ── Power BI REST   ──► Fabric semantic model (DAX)
+                        ── Power BI REST   ──► Fabric semantic model (DAX, Thor.Admin)
+api /reports/summary    ── Power BI REST   ──► same model, DAX filtered to the caller's dealer  ◄── Data Factory copies portal.* daily
 functions/ingest (Python, timer)  ── Graph delta ──► chunk, embed, upsert rag.chunks
 
 Azure (infra/, Bicep): App Service B2 (web, api, assistant containers from GHCR) · Functions Flex (ingest) · Postgres Flexible B1ms · Azure OpenAI (embeddings) · Storage · Key Vault (all secrets) · App Insights · OIDC deploy from GitHub Actions
@@ -156,6 +157,27 @@ make m365        # mcp-m365 on :8100 (needs M365_* in .env)
 make functions   # one sync round without the Functions host; `cd functions && func start` runs the timer
 ```
 
+## Microsoft Fabric
+
+Reporting does not query the portal database. A Data Factory pipeline copies the `portal` schema into a Fabric lakehouse every night, a Direct Lake semantic model defines the measures once, and both the portal's Reports page and the assistant read that model through Power BI REST with DAX. `fabric/` holds the pipeline and the model as code; `infra/fabric.bicep` provides the capacity and `scripts/fabric-up.sh` creates everything else over the Fabric REST API.
+
+| Concern | How |
+|---|---|
+| Why a semantic model | The api could `GROUP BY` claims itself. A semantic model puts the business definitions (`Claim Count`, `Claim Amount`, `Avg Days To Close`, `Open Parts Orders`) in one place that Power BI reports, Excel, the portal and the assistant all read identically, and moves analytical load off the transactional database. It is also what a Fabric-shaped employer means by "reporting" |
+| Data flow | Workspace `dealer-portal`, lakehouse `dealer_portal_lh`. Pipeline `copy-portal-tables` (`fabric/pipeline/pipeline-content.json`): six Copy activities, Azure Postgres tables `dealers`, `units`, `claims`, `parts_orders`, `parts_order_lines`, `parts` overwritten into lakehouse Delta tables, daily at 03:00 UTC through the Fabric job scheduler, once on demand by the script |
+| Model | `Dealer Operations`, TMDL under `fabric/semantic-model/`: six tables in Direct Lake mode over the lakehouse SQL endpoint, relationships to `dealers`, four measures. The script fills the SQL endpoint into `expressions.tmdl`, creates or updates the model through the semantic model definition API and triggers the first framing refresh (after refreshing the SQL endpoint's table metadata, which lags behind the pipeline), so the model is reviewable in a pull request like the rest of the code |
+| Tenancy | The plan was row-level security with the caller's dealer as effective identity. Power BI does not apply RLS when a service principal is the identity on `executeQueries` (documented limitation), so the api builds the tenancy filter into the DAX itself (`FILTER(dealers, dealers[id] = <caller's dealer>)`, `ALL(dealers)` for `Thor.Admin`) from the same token claim the EF queries use. Authorization stays in the api; the model holds no per-user rules |
+| Access | The existing `dealer-portal-m365` app is the Power BI caller too (one secret, already in Key Vault): workspace **Contributor** (the plan said Viewer plus Build, but Build cannot be granted to a service principal over REST and Viewer alone cannot run `executeQueries`; Contributor is the smallest role the API can assign that works), tenant settings *Service principals can call Fabric public APIs* and *Dataset Execute Queries REST API* on. One more step the docs do not spell out: an unbound Direct Lake model reads the SQL endpoint as the querying identity (single sign-on), and `executeQueries` refuses service principals on SSO models with `PowerBINotAuthorizedException`; the script therefore creates a cloud connection to the lakehouse SQL endpoint holding the app's own credentials, binds the model to it and reframes. `PowerBi__WorkspaceId` and `PowerBi__SemanticModelId` switch the feature on; without them `/reports/summary` answers 503 and the Reports page says so |
+| api | `GET /reports/summary`: three EVALUATE queries (totals, claims by month, top parts), one per `executeQueries` call as the endpoint requires, cached five minutes per dealer scope in memory. Tested against recorded responses with a fake handler that also asserts the dealer filter is in every query |
+| web | `/reports`: tiles, claims-by-month bars (inline SVG, no chart library), top parts. Vitest on the data shaping |
+| Assistant | mcp-m365 tool `query_semantic_model(dax)`: a single `EVALUATE` statement only (allowlist), 500 rows max. Offered to `Thor.Admin` conversations only, because the whole mcp-m365 HTTP transport requires that role; a dealer user never sees the tool |
+| Capacity | A Fabric trial was not available on this tenant, so `infra/fabric.bicep` creates a pay-as-you-go **F2** capacity (about 0.36 USD per hour while running, storage only while suspended) in the same resource group; `azure-down.sh` removes it with everything else. Suspend it between demos: `az resource invoke-action --action suspend --ids <capacity id>` (`resume` to bring it back; the semantic model and pipeline are unavailable while suspended, and `/reports/summary` returns an error, so unset the two `PowerBi__*` settings if it stays down) |
+| What a trial or bigger capacity changes | Nothing in code. Assign the workspace to another capacity (trial, F64) and the same pipeline, model and queries keep working; Copilot and other F64-only features become available |
+
+```bash
+scripts/fabric-up.sh   # after azure-up: workspace, lakehouse, connection, pipeline run + schedule, semantic model, app access
+```
+
 ## Azure
 
 Everything runs on Azure from one Bicep template, deployed by GitHub Actions with OIDC (no cloud credential stored in GitHub) or by `scripts/azure-up.sh` from a laptop. It is a demo: one region, the smallest SKUs, torn down when not in use.
@@ -166,7 +188,7 @@ Everything runs on Azure from one Bicep template, deployed by GitHub Actions wit
 | What Bicep manages | `infra/main.bicep` (resource-group scope) composes `storage`, `monitoring`, `postgres`, `openai`, `keyvault`, `apps`, `functions`, `keyvault-access`, `budget`. Every secret (Postgres password, web client secret, Auth.js secret, Anthropic key, M365 client secret, the Azure OpenAI key read at deploy time) lands in Key Vault; app settings hold Key Vault references and the apps' system identities get *Key Vault Secrets User*. Non-secret ids live in `infra/dev.parameters.json`; secrets arrive as parameters from GitHub secrets or `.env` |
 | OIDC over secrets | `scripts/azure-oidc-setup.sh` creates `dealer-portal-deploy` with federated credentials for `master` pushes and pull requests, scoped to the resource group (Contributor plus RBAC Administrator, needed for the role assignments in Bicep). `infra.yml` runs `what-if` on pull requests; `deploy.yml` runs after `images.yml` publishes the master images: Bicep, `rag.migrate` + `rag.ingest` against Azure Postgres with Azure OpenAI embeddings, Function zip deploy, app restarts, health checks |
 | Two embedding indexes | Local and CI use `fastembed` (384 dims, free). Azure uses `text-embedding-3-small` (1536 dims) and its own index, built by `deploy.yml`; `rag.meta` records the provider so an index is never queried with the wrong embedder |
-| Cost | About 0.07 USD per hour while up (App Service B2 about 26 USD/month, Postgres B1ms about 12.60 USD/month, the rest near zero at demo traffic). `scripts/azure-down.sh` deletes the resource group and purges the vault; the demo is down when nobody is looking at it |
+| Cost | About 0.07 USD per hour while up (App Service B2 about 26 USD/month, Postgres B1ms about 12.60 USD/month, the rest near zero at demo traffic), plus 0.36 USD per hour while the Fabric F2 capacity is running (suspend it between demos). `scripts/azure-down.sh` deletes the resource group and purges the vault; the demo is down when nobody is looking at it. The deploy identity's roles are scoped to that group, so `scripts/azure-oidc-setup.sh` runs again before the next deploy |
 
 ```bash
 scripts/entra-setup.sh          # app registrations incl. the Azure redirect URI

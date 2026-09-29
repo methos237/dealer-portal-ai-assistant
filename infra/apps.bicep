@@ -12,6 +12,9 @@ param m365TenantId string
 param m365ClientId string
 param m365Site string
 param m365Library string
+@description('Fabric semantic model the api reports from (scripts/fabric-up.sh); empty turns /reports/summary off.')
+param powerBiWorkspaceId string = ''
+param powerBiSemanticModelId string = ''
 @description('Key Vault name; secrets referenced by name so App Service resolves them with the app identity.')
 param keyVaultName string
 
@@ -57,6 +60,12 @@ var settings = {
     Database__SeedOnStart: 'true'
     AzureAd__TenantId: entraTenantId
     AzureAd__ClientId: apiClientId
+    // Power BI REST as the dealer-portal-m365 app; ids come from GitHub variables after scripts/fabric-up.sh
+    PowerBi__WorkspaceId: powerBiWorkspaceId
+    PowerBi__SemanticModelId: powerBiSemanticModelId
+    M365_TENANT_ID: m365TenantId
+    M365_CLIENT_ID: m365ClientId
+    M365_CLIENT_SECRET: '@${kv}m365-client-secret)'
   })
   assistant: union(common, {
     WEBSITES_PORT: '8000'

@@ -1,0 +1,48 @@
+table units
+	lineageTag: 2c718ed4-e90b-4684-868c-8863c40f3cb3
+	sourceLineageTag: [dbo].[units]
+
+	column id
+		dataType: int64
+		isHidden
+		lineageTag: 7474e641-b819-4807-8f72-ce0dfdc0735a
+		sourceLineageTag: id
+		summarizeBy: none
+		sourceColumn: id
+
+	column dealer_id
+		dataType: int64
+		isHidden
+		lineageTag: adacf00d-fbad-4045-9850-4bf0129c878c
+		sourceLineageTag: dealer_id
+		summarizeBy: none
+		sourceColumn: dealer_id
+
+	column vin
+		dataType: string
+		lineageTag: 7708f0ed-edd1-47e1-8864-d7f5cc25d762
+		sourceLineageTag: vin
+		summarizeBy: none
+		sourceColumn: vin
+
+	column model
+		dataType: string
+		lineageTag: 7e56b685-d5e5-41ae-8578-88ec69d04734
+		sourceLineageTag: model
+		summarizeBy: none
+		sourceColumn: model
+
+	column delivery_date
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: ebd823f9-2a5b-4438-b6a9-b9ecc0fa4aa5
+		sourceLineageTag: delivery_date
+		summarizeBy: none
+		sourceColumn: delivery_date
+
+	partition units = entity
+		mode: directLake
+		source
+			entityName: units
+			schemaName: dbo
+			expressionSource: DatabaseQuery

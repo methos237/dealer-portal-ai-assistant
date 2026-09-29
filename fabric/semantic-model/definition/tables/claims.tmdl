@@ -1,0 +1,83 @@
+table claims
+	lineageTag: 42785c09-5128-4b72-98e5-5429b988c95c
+	sourceLineageTag: [dbo].[claims]
+
+	measure 'Claim Count' = COUNTROWS(claims)
+		formatString: #,##0
+		lineageTag: 66604aab-93c1-47d3-85c6-30dc9c43fd75
+
+	measure 'Claim Amount' = SUM(claims[amount])
+		formatString: #,##0.00
+		lineageTag: 95edac57-974b-4e94-b6f4-bd917277408c
+
+	measure 'Avg Days To Close' = AVERAGEX(FILTER(claims, NOT ISBLANK(claims[approved_at])), DATEDIFF(claims[created_at], claims[approved_at], DAY))
+		formatString: #,##0.0
+		lineageTag: 3500d83e-7abc-4289-9310-4f80ebc17482
+
+	column id
+		dataType: int64
+		isHidden
+		lineageTag: 59b7f038-1deb-474d-aaf2-24aa40ae919b
+		sourceLineageTag: id
+		summarizeBy: none
+		sourceColumn: id
+
+	column dealer_id
+		dataType: int64
+		isHidden
+		lineageTag: 9f0c9d80-b6b4-44db-bc1f-3b6c7d327ed9
+		sourceLineageTag: dealer_id
+		summarizeBy: none
+		sourceColumn: dealer_id
+
+	column unit_id
+		dataType: int64
+		isHidden
+		lineageTag: 0a51adda-dee7-46f3-af5d-527779d9fafc
+		sourceLineageTag: unit_id
+		summarizeBy: none
+		sourceColumn: unit_id
+
+	column description
+		dataType: string
+		lineageTag: 82fc3aa4-cbfe-4221-955e-971d093e0d1c
+		sourceLineageTag: description
+		summarizeBy: none
+		sourceColumn: description
+
+	column amount
+		dataType: decimal
+		lineageTag: da22c689-9d7c-4846-8ebe-9a12743e2f46
+		sourceLineageTag: amount
+		summarizeBy: none
+		sourceColumn: amount
+
+	column status
+		dataType: string
+		lineageTag: b83b6275-cfc3-4485-9275-99dad46678e1
+		sourceLineageTag: status
+		summarizeBy: none
+		sourceColumn: status
+
+	column created_at
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 1cfb95d5-4d62-4306-8600-7d17566814d8
+		sourceLineageTag: created_at
+		summarizeBy: none
+		sourceColumn: created_at
+
+	column approved_at
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: d122c98e-45fa-425e-87c8-580caad1aa96
+		sourceLineageTag: approved_at
+		summarizeBy: none
+		sourceColumn: approved_at
+
+	partition claims = entity
+		mode: directLake
+		source
+			entityName: claims
+			schemaName: dbo
+			expressionSource: DatabaseQuery

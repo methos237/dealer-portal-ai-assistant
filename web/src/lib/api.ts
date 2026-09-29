@@ -1,7 +1,15 @@
 import "server-only";
 import { auth } from "@/auth";
 import { apiRequest } from "./api-client";
-import type { Claim, Document, Me, Part, PartsOrder, Unit } from "./types";
+import type {
+  Claim,
+  Document,
+  Me,
+  Part,
+  PartsOrder,
+  ReportSummary,
+  Unit,
+} from "./types";
 
 const baseUrl = process.env.PORTAL_API_URL ?? "http://localhost:5080";
 
@@ -19,5 +27,6 @@ export const listClaims = () => api<Claim[]>("/claims");
 export const listPartsOrders = () => api<PartsOrder[]>("/parts-orders");
 export const listParts = () => api<Part[]>("/parts");
 export const listDocuments = () => api<Document[]>("/documents");
+export const getReportSummary = () => api<ReportSummary>("/reports/summary");
 export const post = <T>(path: string, body: unknown) =>
   api<T>(path, { method: "POST", body: JSON.stringify(body) });

@@ -1,0 +1,31 @@
+table parts
+	lineageTag: bbec1637-b056-4206-83d8-28955d1a7d56
+	sourceLineageTag: [dbo].[parts]
+
+	column sku
+		dataType: string
+		lineageTag: 433a359e-9b94-42fd-b4c7-def15881f618
+		sourceLineageTag: sku
+		summarizeBy: none
+		sourceColumn: sku
+
+	column name
+		dataType: string
+		lineageTag: 214573c0-3a4a-4d66-842c-b6a6e24f7c07
+		sourceLineageTag: name
+		summarizeBy: none
+		sourceColumn: name
+
+	column unit_price
+		dataType: decimal
+		lineageTag: c0a2e39f-2bd2-4d53-ba51-695c252be3e9
+		sourceLineageTag: unit_price
+		summarizeBy: none
+		sourceColumn: unit_price
+
+	partition parts = entity
+		mode: directLake
+		source
+			entityName: parts
+			schemaName: dbo
+			expressionSource: DatabaseQuery

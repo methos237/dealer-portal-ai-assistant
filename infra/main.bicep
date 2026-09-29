@@ -18,6 +18,10 @@ param m365TenantId string
 param m365ClientId string
 param m365Site string
 param m365Library string = 'Documents'
+// Fabric: F2 capacity here; workspace, lakehouse, pipeline and semantic model by scripts/fabric-up.sh, which prints the two ids
+param fabricAdminUpns array
+param powerBiWorkspaceId string = ''
+param powerBiSemanticModelId string = ''
 @description('Budget alerts go here.')
 param budgetEmail string
 
@@ -88,6 +92,8 @@ module apps 'apps.bicep' = {
     m365ClientId: m365ClientId
     m365Site: m365Site
     m365Library: m365Library
+    powerBiWorkspaceId: powerBiWorkspaceId
+    powerBiSemanticModelId: powerBiSemanticModelId
     keyVaultName: keyvault.outputs.vaultName
   }
 }
@@ -116,6 +122,12 @@ module keyvaultAccess 'keyvault-access.bicep' = {
   }
 }
 
+module fabric 'fabric.bicep' = {
+  name: 'fabric'
+  // this free-trial subscription has Fabric quota (4 CU) in centralus only, none in eastus2
+  params: { location: computeLocation, adminUpns: fabricAdminUpns }
+}
+
 module budget 'budget.bicep' = {
   name: 'budget'
   params: { contactEmail: budgetEmail }
@@ -130,3 +142,4 @@ output openAiEndpoint string = openai.outputs.endpoint
 output openAiAccountName string = openai.outputs.accountName
 output keyVaultName string = keyvault.outputs.vaultName
 output functionAppName string = functions.outputs.name
+output fabricCapacityId string = fabric.outputs.capacityId

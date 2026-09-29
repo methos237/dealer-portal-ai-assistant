@@ -98,13 +98,13 @@ Headless check (verified):
 ```
 $ claude -p "Use the dealer-portal-m365 MCP server: list the document libraries, then read the first \
     document in the first library and report its title and the replacement part number in two lines." \
-    --allowedTools mcp__dealer-portal-m365__list_libraries,mcp__dealer-portal-m365__list_documents,mcp__dealer-portal-m365__get_document
+    --allowedTools mcp__dealer-portal-m365__list_libraries,mcp__dealer-portal-m365__list_documents,mcp__dealer-portal-m365__get_document,mcp__dealer-portal-m365__query_semantic_model
 One library found ("Documents"), one file in it.
 Title: Service Bulletin SB-2026-11: Awning motor AWN-1200 intermittent stop
 Replacement part number: AWN-1200-H2
 ```
 
-Tools: `list_libraries`, `list_documents`, `get_document`, `search_documents`. All read-only; the app registration has no write permission. `search_documents` falls back to file-name matching (and says so) while a new tenant's search service is still provisioning.
+Tools: `list_libraries`, `list_documents`, `get_document`, `search_documents`, and `query_semantic_model` (read-only DAX, one `EVALUATE` statement, against the Fabric semantic model `Dealer Operations`; offered only when `PowerBi__WorkspaceId` and `PowerBi__SemanticModelId` are set in the server's environment). All read-only; the app registration has no write permission. `search_documents` falls back to file-name matching (and says so) while a new tenant's search service is still provisioning.
 
 ## What you cannot do from an MCP client
 

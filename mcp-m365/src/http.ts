@@ -4,12 +4,14 @@ import express, { type Express } from "express";
 import { resolve } from "node:path";
 import { authFromEnv, makeVerifier, type Verifier } from "./auth.js";
 import { Graph } from "./graph.js";
+import { PowerBi } from "./powerbi.js";
 import { createServer } from "./server.js";
 
 export function createApp(
   graph: Graph,
   site: string,
   verify: Verifier,
+  powerBi?: PowerBi,
 ): Express {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
@@ -33,7 +35,7 @@ export function createApp(
       });
       return;
     }
-    const server = createServer(graph, site);
+    const server = createServer(graph, site, powerBi);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
     });
@@ -51,10 +53,12 @@ if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {
   const site = process.env.M365_SITE;
   if (!site) throw new Error("M365_SITE is not set");
   const port = Number(process.env.PORT ?? 8100);
-  createApp(Graph.fromEnv(), site, makeVerifier(authFromEnv())).listen(
-    port,
-    () => {
-      console.error(`mcp-m365 listening on http://localhost:${port}/mcp`);
-    },
-  );
+  createApp(
+    Graph.fromEnv(),
+    site,
+    makeVerifier(authFromEnv()),
+    PowerBi.fromEnv(),
+  ).listen(port, () => {
+    console.error(`mcp-m365 listening on http://localhost:${port}/mcp`);
+  });
 }

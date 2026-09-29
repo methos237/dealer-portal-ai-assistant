@@ -1,0 +1,7 @@
+/// Lakehouse SQL analytics endpoint; scripts/fabric-up.sh fills the two placeholders at deploy time.
+expression DatabaseQuery =
+		let
+			database = Sql.Database("${SQL_ENDPOINT}", "${SQL_ENDPOINT_ID}")
+		in
+			database
+	lineageTag: e7d2deef-ad7a-4ffd-9c9f-fa41812dc139

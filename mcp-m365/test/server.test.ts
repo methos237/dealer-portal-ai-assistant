@@ -3,6 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Graph } from "../src/graph.js";
+import { PowerBi } from "../src/powerbi.js";
 import { createServer } from "../src/server.js";
 import { createApp } from "../src/http.js";
 
@@ -37,11 +38,44 @@ const routes: Record<string, () => Response> = {
       { status: 500 },
     ),
 };
+const WORKSPACE = "11111111-1111-4111-8111-111111111111";
+const MODEL = "22222222-2222-4222-8222-222222222222";
+const PBI_PATH = `/groups/${WORKSPACE}/datasets/${MODEL}/executeQueries`;
 const calls: string[] = [];
 const fakeFetch: typeof fetch = async (input, init) => {
   const url = new URL(String(input));
-  const path = url.pathname.replace("/v1.0", "");
+  const path = url.pathname.replace("/v1.0", "").replace("/myorg", "");
   calls.push(path);
+  if (path === PBI_PATH) {
+    expect((init?.headers as Record<string, string>).authorization).toBe(
+      "Bearer fake-pbi-token",
+    );
+    const { queries } = JSON.parse(String(init?.body));
+    return queries[0].query.includes("BAD")
+      ? Response.json(
+          {
+            error: {
+              code: "DatasetExecuteQueriesError",
+              message: "Query (1, 10) The syntax for 'BAD' is incorrect.",
+            },
+          },
+          { status: 400 },
+        )
+      : Response.json({
+          results: [
+            {
+              tables: [
+                {
+                  rows: [
+                    { "dealers[name]": "Blue Ridge RV", "[Claims]": 6 },
+                    { "dealers[name]": "Lakeshore Motorhomes", "[Claims]": 6 },
+                  ],
+                },
+              ],
+            },
+          ],
+        });
+  }
   expect((init?.headers as Record<string, string>).authorization).toBe(
     "Bearer fake-graph-token",
   );
@@ -59,11 +93,17 @@ const fakeFetch: typeof fetch = async (input, init) => {
       );
 };
 const graph = new Graph(async () => "fake-graph-token", fakeFetch);
+const powerBi = new PowerBi(
+  async () => "fake-pbi-token",
+  WORKSPACE,
+  MODEL,
+  fakeFetch,
+);
 
-async function connect() {
+async function connect(pbi?: PowerBi) {
   const [clientEnd, serverEnd] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0" });
-  await createServer(graph, SITE).connect(serverEnd);
+  await createServer(graph, SITE, pbi).connect(serverEnd);
   await client.connect(clientEnd);
   return client;
 }
@@ -169,6 +209,66 @@ describe("mcp-m365 server", () => {
       arguments: { drive_id: DRIVE, item_id: "nope" },
     });
     expect(r.isError).toBe(true);
+  });
+});
+
+describe("query_semantic_model", () => {
+  const dax =
+    'EVALUATE SUMMARIZECOLUMNS(dealers[name], "Claims", [Claim Count])';
+
+  it("is offered only when Power BI is configured", async () => {
+    const { tools } = await (await connect(powerBi)).listTools();
+    expect(tools.map((t) => t.name)).toContain("query_semantic_model");
+    expect(tools).toHaveLength(5);
+    expect(
+      tools.find((t) => t.name === "query_semantic_model")?.annotations
+        ?.readOnlyHint,
+    ).toBe(true);
+  });
+
+  it("runs a single EVALUATE and returns rows", async () => {
+    const r = text(
+      await (
+        await connect(powerBi)
+      ).callTool({ name: "query_semantic_model", arguments: { dax } }),
+    );
+    expect(r.rowCount).toBe(2);
+    expect(r.truncated).toBe(false);
+    expect(r.rows[0]).toEqual({
+      "dealers[name]": "Blue Ridge RV",
+      "[Claims]": 6,
+    });
+  });
+
+  it("refuses anything but one EVALUATE without calling Power BI", async () => {
+    const client = await connect(powerBi);
+    for (const bad of [
+      `DEFINE MEASURE claims[x] = 1 ${dax}`,
+      "SELECT 1",
+      `${dax} ${dax}`,
+      "",
+    ]) {
+      calls.length = 0;
+      const r = await client.callTool({
+        name: "query_semantic_model",
+        arguments: { dax: bad || "x" },
+      });
+      expect(r.isError).toBe(true);
+      expect(calls).toEqual([]);
+    }
+  });
+
+  it("surfaces DAX errors as tool errors", async () => {
+    const r = await (
+      await connect(powerBi)
+    ).callTool({
+      name: "query_semantic_model",
+      arguments: { dax: "EVALUATE BAD" },
+    });
+    expect(r.isError).toBe(true);
+    expect((r.content as Array<{ text: string }>)[0]!.text).toBe(
+      "DatasetExecuteQueriesError: Query (1, 10) The syntax for 'BAD' is incorrect.",
+    );
   });
 });
 
