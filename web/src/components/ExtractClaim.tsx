@@ -4,7 +4,6 @@ import { useState } from "react";
 
 type Extraction = {
   vin: string | null;
-  model: string | null;
   description: string;
   amount: number | null;
   confidence: string;
@@ -39,26 +38,34 @@ export function ExtractClaim({
   }
 
   return (
-    <details className="mt-4 max-w-lg rounded border bg-white p-3 text-sm">
-      <summary className="cursor-pointer font-medium">
-        Paste the customer&apos;s email to pre-fill
+    <details className="card group mt-6 text-sm">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium [&::-webkit-details-marker]:hidden">
+        <span>Pre-fill from the customer&apos;s email</span>
+        <span className="text-fg-subtle transition-transform group-open:rotate-45">
+          +
+        </span>
       </summary>
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={5}
-        aria-label="Customer email"
-        className="mt-2 block w-full rounded border p-2"
-      />
-      <button
-        type="button"
-        disabled={busy || !text.trim()}
-        onClick={extract}
-        className="mt-2 rounded border px-3 py-1 disabled:opacity-50"
-      >
-        Extract claim details
-      </button>
-      {error && <p className="mt-1 text-red-700">{error}</p>}
+      <div className="border-t border-border px-5 pt-4 pb-5">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={5}
+          aria-label="Customer email"
+          placeholder="Paste the email here. The assistant picks out the VIN, the problem and the amount."
+          className="field"
+        />
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            disabled={busy || !text.trim()}
+            onClick={extract}
+            className="btn btn-ghost btn-sm"
+          >
+            {busy ? "Reading…" : "Extract claim details"}
+          </button>
+          {error && <p className="text-error-ink">{error}</p>}
+        </div>
+      </div>
     </details>
   );
 }

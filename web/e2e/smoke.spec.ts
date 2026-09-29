@@ -52,7 +52,7 @@ test("Thor.Admin sees the approvals link and approves a pending claim", async ({
     dealerPage
       .getByTestId("claim-row")
       .filter({ hasText: "Refrigerator cooling" }),
-  ).toContainText("PendingApproval");
+  ).toContainText("Pending approval");
   await dealer.close();
 
   const admin = await browser.newContext();

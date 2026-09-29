@@ -179,6 +179,27 @@ createServer(async (req, res) => {
   }
   if (p === "/parts") return json(res, 200, parts);
   if (p === "/documents") return json(res, 200, documents);
+  if (p === "/reports/summary")
+    return json(res, 200, {
+      dealerId: 1,
+      totals: {
+        claimCount: 15,
+        claimAmount: 79179,
+        avgDaysToClose: 3,
+        openPartsOrders: 2,
+      },
+      claimsByMonth: [
+        { month: "2026-05", count: 2, amount: 4100 },
+        { month: "2026-06", count: 4, amount: 22800 },
+        { month: "2026-08", count: 3, amount: 9500 },
+        { month: "2026-09", count: 6, amount: 42779 },
+      ],
+      topParts: [
+        { sku: "SLD-MTR-01", name: "Slide-out motor", quantity: 7 },
+        { sku: "INV-2000", name: "Inverter 2000 W", quantity: 3 },
+        { sku: "SEAL-KIT", name: "Slide seal kit", quantity: 3 },
+      ],
+    });
   json(res, 404, { title: "Not Found", status: 404 });
 }).listen(Number(process.env.PORT ?? 5081), () =>
   console.log("mock api on", process.env.PORT ?? 5081),

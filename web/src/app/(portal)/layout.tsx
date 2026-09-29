@@ -2,8 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { DraftReplayer } from "@/components/DraftReplayer";
+import { Close, Mark, Menu } from "@/components/icons";
+import { PortalNav, type NavLink } from "@/components/PortalNav";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
-const links = [
+const links: NavLink[] = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/units", label: "Units" },
   { href: "/claims", label: "Claims" },
@@ -13,6 +16,11 @@ const links = [
   { href: "/assistant", label: "Assistant" },
 ];
 
+async function signOutAction() {
+  "use server";
+  await signOut({ redirectTo: "/" });
+}
+
 export default async function PortalLayout({
   children,
 }: {
@@ -21,49 +29,81 @@ export default async function PortalLayout({
   const session = await auth();
   if (!session) redirect("/");
   const isThorAdmin = session.roles.includes("Thor.Admin");
+  const nav = isThorAdmin
+    ? [
+        ...links,
+        {
+          href: "/claims?status=PendingApproval",
+          label: "Approvals",
+          admin: true,
+        },
+      ]
+    : links;
+  const name = session.user?.name ?? "Signed in";
+  const initials = name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("");
+  const role = session.roles[0]?.replace(".", " ") ?? "No role";
+
   return (
     <>
-      <header className="border-b bg-white">
-        <nav
-          className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-3"
-          aria-label="Main"
-        >
-          <Link href="/dashboard" className="font-semibold text-blue-900">
+      <header className="sticky top-0 z-20 px-3 pt-3 md:px-6 md:pt-4">
+        <div className="card relative mx-auto flex max-w-7xl items-center gap-3 px-3 py-2 shadow-bar md:px-4">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 pr-2 font-heading text-base font-semibold tracking-tight"
+          >
+            <Mark className="text-primary" />
             Dealer Portal
           </Link>
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="text-sm text-slate-700 hover:text-blue-800"
+          <PortalNav
+            links={nav}
+            className="hidden items-center gap-1 md:flex"
+          />
+          <div className="ml-auto flex items-center gap-1">
+            <ThemeToggle />
+            <span
+              className="hidden items-center gap-2 rounded-full bg-surface-2 py-1 pr-3 pl-1 text-sm lg:flex"
+              title={session.roles.join(", ") || "no role"}
             >
-              {l.label}
-            </Link>
-          ))}
-          {isThorAdmin && (
-            <Link
-              href="/claims?status=PendingApproval"
-              className="text-sm text-amber-800 hover:text-amber-900"
-            >
-              Approvals
-            </Link>
-          )}
-          <span className="ml-auto text-sm text-slate-500">
-            {session.user?.name} · {session.roles.join(", ") || "no role"}
-          </span>
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/" });
-            }}
-          >
-            <button className="text-sm text-slate-600 underline">
-              Sign out
-            </button>
-          </form>
-        </nav>
+              <span className="flex size-7 items-center justify-center rounded-full bg-ink font-heading text-xs font-semibold text-ink-fg">
+                {initials}
+              </span>
+              <span className="font-medium">{name}</span>
+              <span className="text-fg-subtle">{role}</span>
+            </span>
+            <form action={signOutAction} className="hidden md:block">
+              <button className="btn btn-ghost btn-sm">Sign out</button>
+            </form>
+            <details className="group md:hidden">
+              <summary
+                className="inline-flex size-10 cursor-pointer list-none items-center justify-center rounded-full text-fg-muted hover:bg-surface-2 [&::-webkit-details-marker]:hidden"
+                aria-label="Menu"
+              >
+                <Menu className="group-open:hidden" />
+                <Close className="hidden group-open:block" />
+              </summary>
+              <div className="card absolute inset-x-0 top-full mt-2 p-3 shadow-bar">
+                <PortalNav links={nav} className="flex flex-col gap-0.5" />
+                <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-sm">
+                  <span>
+                    <span className="font-medium">{name}</span>{" "}
+                    <span className="text-fg-subtle">{role}</span>
+                  </span>
+                  <form action={signOutAction}>
+                    <button className="btn btn-ghost btn-sm">Sign out</button>
+                  </form>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
       </header>
-      <main className="mx-auto max-w-6xl p-6">{children}</main>
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8 md:py-10">
+        {children}
+      </main>
       <DraftReplayer />
     </>
   );

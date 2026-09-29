@@ -64,15 +64,16 @@ export function ClaimForm({
       <form
         key={JSON.stringify(prefill)}
         onSubmit={onSubmit}
-        className="mt-6 max-w-lg space-y-4"
+        className="card mt-6 space-y-5 p-6"
         noValidate
       >
-        <label className="block text-sm">
+        <label className="label">
           Unit
           <select
             name="unitId"
-            defaultValue={initialUnitId ?? ""}
-            className="mt-1 block w-full rounded border p-2"
+            defaultValue={prefill.unitId ?? initialUnitId ?? ""}
+            aria-invalid={errors.unitId ? true : undefined}
+            className="field mt-1.5"
           >
             <option value="">Choose a unit</option>
             {units.map((u) => (
@@ -81,45 +82,46 @@ export function ClaimForm({
               </option>
             ))}
           </select>
-          {errors.unitId && (
-            <span className="text-red-700">{errors.unitId}</span>
-          )}
+          {errors.unitId && <span className="error-text">{errors.unitId}</span>}
         </label>
-        <label className="block text-sm">
+        <label className="label">
           Description
           <textarea
             name="description"
             rows={4}
-            className="mt-1 block w-full rounded border p-2"
+            defaultValue={prefill.description}
+            aria-invalid={errors.description ? true : undefined}
+            placeholder="What failed, what the customer reported, what was replaced"
+            className="field mt-1.5"
           />
           {errors.description && (
-            <span className="text-red-700">{errors.description}</span>
+            <span className="error-text">{errors.description}</span>
           )}
         </label>
-        <label className="block text-sm">
+        <label className="label">
           Amount (USD)
           <input
             name="amount"
             type="number"
             step="0.01"
             min="0.01"
-            className="mt-1 block w-full rounded border p-2"
+            defaultValue={prefill.amount}
+            aria-invalid={errors.amount ? true : undefined}
+            placeholder="0.00"
+            className="field mt-1.5 max-w-xs tabular-nums"
           />
-          {errors.amount && (
-            <span className="text-red-700">{errors.amount}</span>
-          )}
+          {errors.amount && <span className="error-text">{errors.amount}</span>}
         </label>
-        <button
-          disabled={busy}
-          className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50"
-        >
-          Submit claim
-        </button>
-        {status && (
-          <p role="status" className="text-sm text-slate-700">
-            {status}
-          </p>
-        )}
+        <div className="flex items-center gap-4 pt-1">
+          <button disabled={busy} className="btn btn-primary">
+            {busy ? "Submitting…" : "Submit claim"}
+          </button>
+          {status && (
+            <p role="status" className="text-sm text-fg-muted">
+              {status}
+            </p>
+          )}
+        </div>
       </form>
     </>
   );

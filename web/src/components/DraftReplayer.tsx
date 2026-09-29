@@ -53,7 +53,7 @@ export function DraftReplayer() {
   return (
     <div
       role="status"
-      className="fixed bottom-4 right-4 rounded bg-slate-900 px-4 py-2 text-sm text-white shadow"
+      className="fixed right-4 bottom-4 max-w-sm rounded-2xl bg-ink px-4 py-3 text-sm text-ink-fg shadow-bar"
     >
       {message}
     </div>
