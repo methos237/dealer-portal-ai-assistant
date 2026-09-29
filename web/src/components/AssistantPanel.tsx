@@ -298,109 +298,155 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
               </p>
             </div>
           )}
-          {messages.map((m, i) => (
-            <div key={i} className={m.role === "user" ? "text-right" : ""}>
-              <div
-                className={`inline-block max-w-[85%] text-left text-[15px] leading-relaxed whitespace-pre-wrap md:max-w-[75%] ${m.role === "user" ? "rounded-2xl rounded-br-md bg-ink px-4 py-2.5 text-ink-fg" : ""}`}
-                data-testid={`message-${m.role}`}
-              >
-                {m.blocks.map((b, j) => (
-                  <span key={j}>
-                    {b.text}
-                    {b.citations.map((c, k) => (
-                      <button
-                        key={k}
-                        type="button"
-                        title={c.cited_text}
-                        onClick={() => c.source && showChunk(c.source.chunk_id)}
-                        className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-soft px-1.5 align-super text-[11px] font-medium text-primary-ink hover:bg-primary hover:text-white"
-                        data-testid="citation"
-                      >
-                        {k + 1}
-                      </button>
-                    ))}
-                  </span>
-                ))}
-                {m.tools && m.tools.length > 0 && (
-                  <ul
-                    className="mt-3 space-y-1 text-xs text-fg-muted"
-                    data-testid="tools"
-                  >
-                    {m.tools.map((t, k) => (
-                      <li key={k} className="flex items-start gap-1.5">
-                        {t.is_error ? (
-                          <Close
-                            width={14}
-                            height={14}
-                            className="mt-0.5 shrink-0 text-error"
-                          />
-                        ) : (
-                          <Check
-                            width={14}
-                            height={14}
-                            className="mt-0.5 shrink-0 text-success"
-                          />
-                        )}
-                        <span>
-                          <code className="font-medium text-fg">{t.name}</code>{" "}
-                          <span className="font-mono">
-                            {JSON.stringify(t.input)}
+          {messages.map((m, i) => {
+            const sources = uniqueBy(
+              m.blocks.flatMap((b) => b.citations),
+              sourceKey,
+            );
+            return (
+              <div key={i} className={m.role === "user" ? "text-right" : ""}>
+                <div
+                  className={`inline-block max-w-[85%] text-left text-[15px] leading-relaxed whitespace-pre-wrap md:max-w-[75%] ${m.role === "user" ? "rounded-2xl rounded-br-md bg-ink px-4 py-2.5 text-ink-fg" : ""}`}
+                  data-testid={`message-${m.role}`}
+                >
+                  {m.blocks.map((b, j) => (
+                    <span key={j}>
+                      {b.text}
+                      {uniqueBy(b.citations, sourceKey).map((c) => {
+                        const n =
+                          sources.findIndex(
+                            (s) => sourceKey(s) === sourceKey(c),
+                          ) + 1;
+                        return (
+                          <button
+                            key={sourceKey(c)}
+                            type="button"
+                            title={c.cited_text}
+                            onClick={() =>
+                              c.source && showChunk(c.source.chunk_id)
+                            }
+                            className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-soft px-1.5 align-super text-[11px] font-medium text-primary-ink hover:bg-primary hover:text-white"
+                            data-testid="citation"
+                          >
+                            {n}
+                          </button>
+                        );
+                      })}
+                    </span>
+                  ))}
+                  {sources.length > 0 && (
+                    <ol
+                      className="mt-3 space-y-1 border-t border-border pt-3 text-xs text-fg-muted"
+                      data-testid="sources"
+                    >
+                      {sources.map((c, k) => (
+                        <li key={sourceKey(c)} className="flex gap-2">
+                          <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary-soft px-1.5 text-[11px] font-medium text-primary-ink">
+                            {k + 1}
                           </span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {m.drafts?.map((d, k) => (
-                  <div
-                    key={k}
-                    className="mt-3 rounded-2xl bg-warn-soft p-4 text-sm text-warn-ink"
-                    data-testid="confirm-card"
-                  >
-                    <div className="font-heading font-semibold">
-                      Confirm {d.kind.replace("_", " ")}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              c.source && showChunk(c.source.chunk_id)
+                            }
+                            className="text-left hover:text-fg hover:underline"
+                          >
+                            {c.source?.title ?? c.document_title}
+                            {c.source?.metadata.section
+                              ? ` · ${c.source.metadata.section}`
+                              : ""}
+                            {c.source?.metadata.page
+                              ? ` · page ${c.source.metadata.page}`
+                              : ""}
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  {m.tools && m.tools.length > 0 && (
+                    <ul
+                      className="mt-3 space-y-1 text-xs text-fg-muted"
+                      data-testid="tools"
+                    >
+                      {m.tools.map((t, k) => (
+                        <li key={k} className="flex items-start gap-1.5">
+                          {t.is_error ? (
+                            <Close
+                              width={14}
+                              height={14}
+                              className="mt-0.5 shrink-0 text-error"
+                            />
+                          ) : (
+                            <Check
+                              width={14}
+                              height={14}
+                              className="mt-0.5 shrink-0 text-success"
+                            />
+                          )}
+                          <span>
+                            <code className="font-medium text-fg">
+                              {t.name}
+                            </code>{" "}
+                            <span className="font-mono">
+                              {JSON.stringify(t.input)}
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {m.drafts?.map((d, k) => (
+                    <div
+                      key={k}
+                      className="mt-3 rounded-2xl bg-warn-soft p-4 text-sm text-warn-ink"
+                      data-testid="confirm-card"
+                    >
+                      <div className="font-heading font-semibold">
+                        Confirm {d.kind.replace("_", " ")}
+                      </div>
+                      <p className="mt-1">{d.summary}</p>
+                      {d.status === "pending" && (
+                        <button
+                          type="button"
+                          onClick={() => confirm(i, k)}
+                          className="btn btn-ink btn-sm mt-3"
+                        >
+                          Confirm and send
+                        </button>
+                      )}
+                      {d.status !== "pending" && (
+                        <p
+                          className={`mt-2 text-xs font-medium ${d.status === "failed" ? "text-error-ink" : "text-success-ink"}`}
+                        >
+                          {d.result ??
+                            (d.status === "done" ? "Confirmed." : "")}
+                        </p>
+                      )}
                     </div>
-                    <p className="mt-1">{d.summary}</p>
-                    {d.status === "pending" && (
-                      <button
-                        type="button"
-                        onClick={() => confirm(i, k)}
-                        className="btn btn-ink btn-sm mt-3"
-                      >
-                        Confirm and send
-                      </button>
-                    )}
-                    {d.status !== "pending" && (
-                      <p
-                        className={`mt-2 text-xs font-medium ${d.status === "failed" ? "text-error-ink" : "text-success-ink"}`}
-                      >
-                        {d.result ?? (d.status === "done" ? "Confirmed." : "")}
-                      </p>
-                    )}
+                  ))}
+                  {m.stopReason === "refusal" && (
+                    <p className="mt-2 text-xs text-warn-ink">
+                      The assistant declined to answer this request.
+                    </p>
+                  )}
+                  {m.stopReason === "max_tokens" && (
+                    <p className="mt-2 text-xs text-warn-ink">
+                      The answer was cut off at the length limit.
+                    </p>
+                  )}
+                </div>
+                {m.usage && (
+                  <div
+                    className="mt-1 text-xs text-fg-subtle tabular-nums"
+                    data-testid="usage"
+                  >
+                    {m.usage.input_tokens} in · {m.usage.output_tokens} out ·{" "}
+                    {m.usage.cache_read_input_tokens ?? 0} cached
                   </div>
-                ))}
-                {m.stopReason === "refusal" && (
-                  <p className="mt-2 text-xs text-warn-ink">
-                    The assistant declined to answer this request.
-                  </p>
-                )}
-                {m.stopReason === "max_tokens" && (
-                  <p className="mt-2 text-xs text-warn-ink">
-                    The answer was cut off at the length limit.
-                  </p>
                 )}
               </div>
-              {m.usage && (
-                <div
-                  className="mt-1 text-xs text-fg-subtle tabular-nums"
-                  data-testid="usage"
-                >
-                  {m.usage.input_tokens} in · {m.usage.output_tokens} out ·{" "}
-                  {m.usage.cache_read_input_tokens ?? 0} cached
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
           {cost && (
             <p
               className="text-xs text-fg-subtle tabular-nums"
@@ -471,6 +517,15 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
       )}
     </div>
   );
+}
+
+/** One footnote per distinct source; the API emits a citation per cited sentence. */
+const sourceKey = (c: Citation) =>
+  c.source ? `chunk:${c.source.chunk_id}` : `doc:${c.document_title}`;
+
+function uniqueBy<T>(items: T[], key: (t: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter((t) => !seen.has(key(t)) && seen.add(key(t)));
 }
 
 function patchLast(messages: Message[], fn: (b: Block) => Block): Message[] {
