@@ -12,7 +12,6 @@ test("dealer user loads the dashboard, opens a unit and files a claim", async ({
     page.getByRole("heading", { name: "Blue Ridge RV" }),
   ).toBeVisible();
   await expect(page.getByTestId("tile-Units")).toHaveText("3");
-  await page.screenshot({ path: "../docs/screenshots/dashboard.png" });
 
   await page.getByRole("link", { name: "Units", exact: true }).click();
   await page.getByRole("link", { name: "1THRA24X0RN000001" }).click();
@@ -30,7 +29,6 @@ test("dealer user loads the dashboard, opens a unit and files a claim", async ({
     .getByTestId("claim-row")
     .filter({ hasText: "Awning motor stalls" });
   await expect(row).toContainText("Open");
-  await page.screenshot({ path: "../docs/screenshots/claims.png" });
 });
 
 test("Thor.Admin sees the approvals link and approves a pending claim", async ({
