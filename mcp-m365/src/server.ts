@@ -6,7 +6,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod";
 import { extractText, isExtractable } from "./extract.js";
-import { GraphError, type DriveItem, type Graph } from "./graph.js";
+import { GRAPH_ID, GraphError, type DriveItem, type Graph } from "./graph.js";
 import {
   MAX_ROWS,
   PowerBiError,
@@ -15,6 +15,8 @@ import {
 } from "./powerbi.js";
 
 const MAX_TEXT_CHARS = 60_000;
+const MAX_DOWNLOAD_BYTES = 20_000_000;
+const graphId = z.string().regex(GRAPH_ID, "not a Graph id");
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -49,6 +51,11 @@ export function createServer(
     destructiveHint: false,
     openWorldHint: false,
   };
+  // The app-only token can read every drive in the tenant; the tools may only reach this site's.
+  const assertInSite = async (driveId: string) => {
+    if (!(await graph.listLibraries(site)).some((l) => l.id === driveId))
+      throw new Error(`Drive ${driveId} is not a library of this site.`);
+  };
 
   server.registerTool(
     "list_libraries",
@@ -72,9 +79,9 @@ export function createServer(
     {
       title: "List documents",
       description:
-        "Files and folders in a library, optionally under a folder path such as 'Bulletins/2026'.",
+        "Files and folders in a library (first 200), optionally under a folder path such as 'Bulletins/2026'.",
       inputSchema: z.object({
-        drive_id: z.string().describe("From list_libraries"),
+        drive_id: graphId.describe("From list_libraries"),
         path: z
           .string()
           .optional()
@@ -82,8 +89,10 @@ export function createServer(
       }),
       annotations: readOnly,
     },
-    async ({ drive_id, path }) =>
-      ok((await graph.listDocuments(drive_id, path)).map(item)),
+    async ({ drive_id, path }) => {
+      await assertInSite(drive_id);
+      return ok((await graph.listDocuments(drive_id, path)).map(item));
+    },
   );
 
   server.registerTool(
@@ -92,12 +101,13 @@ export function createServer(
       title: "Read a document",
       description: `Plain text of a .pdf, .docx, .md or .txt document (first ${MAX_TEXT_CHARS} characters).`,
       inputSchema: z.object({
-        drive_id: z.string(),
-        item_id: z.string().describe("From list_documents or search_documents"),
+        drive_id: graphId,
+        item_id: graphId.describe("From list_documents or search_documents"),
       }),
       annotations: readOnly,
     },
     async ({ drive_id, item_id }) => {
+      await assertInSite(drive_id);
       const meta = await graph.getItem(drive_id, item_id);
       if (meta.folder)
         return fail(
@@ -106,6 +116,10 @@ export function createServer(
       if (!isExtractable(meta.name))
         return fail(
           `Cannot extract text from ${meta.name}: unsupported file type.`,
+        );
+      if ((meta.size ?? 0) > MAX_DOWNLOAD_BYTES)
+        return fail(
+          `${meta.name} is ${meta.size} bytes; documents over ${MAX_DOWNLOAD_BYTES} are not read.`,
         );
       const text = await extractText(
         meta.name,
@@ -124,17 +138,18 @@ export function createServer(
     {
       title: "Search documents",
       description:
-        "Full-text search over file names and contents. Searches one library, or every library in the site when drive_id is omitted.",
+        "Full-text search over file names and contents (top 25 per library). Searches one library, or every library in the site when drive_id is omitted.",
       inputSchema: z.object({
         query: z.string().min(1),
-        drive_id: z.string().optional(),
+        drive_id: graphId.optional(),
       }),
       annotations: readOnly,
     },
     async ({ query, drive_id }) => {
-      const drives = drive_id
-        ? [drive_id]
-        : (await graph.listLibraries(site)).map((l) => l.id);
+      const libraries = (await graph.listLibraries(site)).map((l) => l.id);
+      if (drive_id && !libraries.includes(drive_id))
+        return fail(`Drive ${drive_id} is not a library of this site.`);
+      const drives = drive_id ? [drive_id] : libraries;
       try {
         const results = await Promise.all(
           drives.map((d) => graph.search(d, query)),

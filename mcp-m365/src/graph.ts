@@ -7,6 +7,8 @@ import { ClientSecretCredential } from "@azure/identity";
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
 const MAX_PAGES = 10;
+/** Graph drive and item ids: base64url-ish plus the "b!" prefix. Anything else could rewrite the URL path. */
+export const GRAPH_ID = /^[A-Za-z0-9!_-]+$/;
 
 export interface Library {
   id: string;
@@ -111,9 +113,10 @@ export class Graph {
     return this.list<Library>(`/sites/${site}/drives?$select=id,name,webUrl`);
   }
 
-  listDocuments(driveId: string, path = ""): Promise<DriveItem[]> {
+  /** First 200 entries only: one tool result must stay small enough for a model turn. */
+  async listDocuments(driveId: string, path = ""): Promise<DriveItem[]> {
     const root = path ? `/root:/${encodePath(path)}:` : "/root";
-    return this.list<DriveItem>(
+    return this.page(
       `/drives/${driveId}${root}/children?$select=${ITEM_FIELDS}&$top=200`,
     );
   }
@@ -130,11 +133,16 @@ export class Graph {
     return Buffer.from(await res.arrayBuffer());
   }
 
+  /** Top 25 hits per library. */
   search(driveId: string, query: string): Promise<DriveItem[]> {
     const q = encodeURIComponent(query.replace(/'/g, "''"));
-    return this.list<DriveItem>(
-      `/drives/${driveId}/root/search(q='${q}')?$select=${ITEM_FIELDS}`,
+    return this.page(
+      `/drives/${driveId}/root/search(q='${q}')?$select=${ITEM_FIELDS}&$top=25`,
     );
+  }
+
+  private async page<T>(url: string): Promise<T[]> {
+    return (await this.json<{ value: T[] }>(url)).value;
   }
 }
 

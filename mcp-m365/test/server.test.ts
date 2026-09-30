@@ -201,6 +201,22 @@ describe("mcp-m365 server", () => {
     expect(r).toEqual([expect.objectContaining({ id: ITEM, kind: "file" })]);
   });
 
+  it("refuses drives outside the site and ids that could rewrite the URL", async () => {
+    calls.length = 0;
+    const client = await connect();
+    const foreign = await client.callTool({
+      name: "get_document",
+      arguments: { drive_id: "b!someOtherTenantDrive", item_id: ITEM },
+    });
+    expect(foreign.isError).toBe(true);
+    const traversal = await client.callTool({
+      name: "get_document",
+      arguments: { drive_id: DRIVE, item_id: "../../users/ceo/drive/root:" },
+    });
+    expect(traversal.isError).toBe(true);
+    expect(calls.filter((c) => c.includes("/items/"))).toHaveLength(0);
+  });
+
   it("unknown items surface Graph's error", async () => {
     const r = await (
       await connect()
