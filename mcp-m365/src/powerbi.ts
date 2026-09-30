@@ -3,15 +3,14 @@
  * credentials as Graph. Read-only DAX only (validateDax); the service principal holds Viewer + Build
  * on the model and nothing else.
  */
-import { ClientSecretCredential } from "@azure/identity";
-import type { TokenProvider } from "./graph.js";
+import { tokenFromEnv, type TokenProvider } from "./graph.js";
 
 const POWERBI = "https://api.powerbi.com/v1.0/myorg";
 export const MAX_ROWS = 500;
 
 export class PowerBiError extends Error {
   constructor(
-    public status: number,
+    status: number,
     public code: string,
     message: string,
   ) {
@@ -45,23 +44,8 @@ export class PowerBi {
     const workspace = env.PowerBi__WorkspaceId;
     const model = env.PowerBi__SemanticModelId;
     if (!workspace || !model) return undefined;
-    const need = (k: string) => {
-      const v = env[k];
-      if (!v) throw new Error(`${k} is not set`);
-      return v;
-    };
-    const credential = new ClientSecretCredential(
-      need("M365_TENANT_ID"),
-      need("M365_CLIENT_ID"),
-      need("M365_CLIENT_SECRET"),
-    );
     return new PowerBi(
-      async () =>
-        (
-          await credential.getToken(
-            "https://analysis.windows.net/powerbi/api/.default",
-          )
-        ).token,
+      tokenFromEnv("https://analysis.windows.net/powerbi/api/.default", env),
       workspace,
       model,
     );

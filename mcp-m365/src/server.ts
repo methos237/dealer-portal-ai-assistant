@@ -14,7 +14,7 @@ import {
   type PowerBi,
 } from "./powerbi.js";
 
-export const MAX_TEXT_CHARS = 60_000;
+const MAX_TEXT_CHARS = 60_000;
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],

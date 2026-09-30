@@ -1,6 +1,6 @@
 /** Streamable HTTP entry point on :8100 for the assistant. Stateless: one server per request. */
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import express, { type Express } from "express";
+import { createServer as createHttpServer, type Server } from "node:http";
 import { resolve } from "node:path";
 import { authFromEnv, makeVerifier, type Verifier } from "./auth.js";
 import { Graph } from "./graph.js";
@@ -12,28 +12,23 @@ export function createApp(
   site: string,
   verify: Verifier,
   powerBi?: PowerBi,
-): Express {
-  const app = express();
-  app.use(express.json({ limit: "1mb" }));
-  app.get("/health", (_req, res) => res.json({ status: "ok" }));
-  app.all("/mcp", async (req, res) => {
-    if (req.method !== "POST") {
-      res.status(405).json({
-        jsonrpc: "2.0",
-        error: { code: -32000, message: "Method not allowed." },
-        id: null,
-      });
-      return;
-    }
+): Server {
+  return createHttpServer(async (req, res) => {
+    const json = (status: number, body: unknown) =>
+      res
+        .writeHead(status, { "content-type": "application/json" })
+        .end(JSON.stringify(body));
+    const rpcError = (status: number, code: number, message: string) =>
+      json(status, { jsonrpc: "2.0", error: { code, message }, id: null });
+    const path = new URL(req.url ?? "/", "http://localhost").pathname;
+    if (path === "/health") return json(200, { status: "ok" });
+    if (path !== "/mcp") return rpcError(404, -32000, "Not found.");
+    if (req.method !== "POST")
+      return rpcError(405, -32000, "Method not allowed.");
     try {
-      await verify(req.header("authorization"));
+      await verify(req.headers.authorization);
     } catch (e) {
-      res.status(401).json({
-        jsonrpc: "2.0",
-        error: { code: -32001, message: (e as Error).message },
-        id: null,
-      });
-      return;
+      return rpcError(401, -32001, (e as Error).message);
     }
     const server = createServer(graph, site, powerBi);
     const transport = new StreamableHTTPServerTransport({
@@ -44,9 +39,8 @@ export function createApp(
       void server.close();
     });
     await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
+    await transport.handleRequest(req, res); // SDK reads and size-limits the body itself
   });
-  return app;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {

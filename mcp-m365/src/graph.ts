@@ -5,14 +5,13 @@
  */
 import { ClientSecretCredential } from "@azure/identity";
 
-export const GRAPH = "https://graph.microsoft.com/v1.0";
+const GRAPH = "https://graph.microsoft.com/v1.0";
 const MAX_PAGES = 10;
 
 export interface Library {
   id: string;
   name: string;
   webUrl: string;
-  driveType: string;
 }
 
 export interface DriveItem {
@@ -21,10 +20,9 @@ export interface DriveItem {
   size?: number;
   lastModifiedDateTime?: string;
   webUrl?: string;
-  file?: { mimeType?: string; hashes?: { quickXorHash?: string } };
+  file?: object;
   folder?: { childCount: number };
   parentReference?: { driveId?: string; path?: string };
-  deleted?: { state: string };
 }
 
 export class GraphError extends Error {
@@ -39,30 +37,32 @@ export class GraphError extends Error {
 
 export type TokenProvider = () => Promise<string>;
 
+/** Client credentials from M365_TENANT_ID / M365_CLIENT_ID / M365_CLIENT_SECRET for one scope. */
+export function tokenFromEnv(
+  scope: string,
+  env: NodeJS.ProcessEnv = process.env,
+): TokenProvider {
+  const need = (k: string) => {
+    const v = env[k];
+    if (!v) throw new Error(`${k} is not set`);
+    return v;
+  };
+  const credential = new ClientSecretCredential(
+    need("M365_TENANT_ID"),
+    need("M365_CLIENT_ID"),
+    need("M365_CLIENT_SECRET"),
+  );
+  return async () => (await credential.getToken(scope)).token;
+}
+
 export class Graph {
   constructor(
     private readonly token: TokenProvider,
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
-  /** Client credentials from M365_TENANT_ID / M365_CLIENT_ID / M365_CLIENT_SECRET. */
   static fromEnv(env: NodeJS.ProcessEnv = process.env): Graph {
-    const need = (k: string) => {
-      const v = env[k];
-      if (!v) throw new Error(`${k} is not set`);
-      return v;
-    };
-    const credential = new ClientSecretCredential(
-      need("M365_TENANT_ID"),
-      need("M365_CLIENT_ID"),
-      need("M365_CLIENT_SECRET"),
-    );
-    return new Graph(async () => {
-      const t = await credential.getToken(
-        "https://graph.microsoft.com/.default",
-      );
-      return t.token;
-    });
+    return new Graph(tokenFromEnv("https://graph.microsoft.com/.default", env));
   }
 
   async fetch(url: string, init: RequestInit = {}): Promise<Response> {
@@ -108,9 +108,7 @@ export class Graph {
 
   /** `site` is a Graph site id or `hostname:/sites/name`; both work in the /sites/{} segment. */
   listLibraries(site: string): Promise<Library[]> {
-    return this.list<Library>(
-      `/sites/${site}/drives?$select=id,name,webUrl,driveType`,
-    );
+    return this.list<Library>(`/sites/${site}/drives?$select=id,name,webUrl`);
   }
 
   listDocuments(driveId: string, path = ""): Promise<DriveItem[]> {

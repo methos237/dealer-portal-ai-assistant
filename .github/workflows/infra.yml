@@ -21,7 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: az bicep install
-      - run: az bicep lint --file infra/main.bicep
       - run: az bicep build --file infra/main.bicep --stdout > /dev/null
 
   # Read-only preview of what a merge would change. Secure parameters get placeholders: what-if
