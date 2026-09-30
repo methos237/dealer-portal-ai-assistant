@@ -42,3 +42,10 @@ def test_pdf_pages_carry_page_numbers() -> None:
     chunks = chunk_pdf_pages(["page one text", "", "page three text"], "Manual")
     assert [c.metadata["page"] for c in chunks] == [1, 3]
     assert chunks[1].text.startswith("Manual (page 3)")
+
+
+def test_markdown_without_h1_keeps_top_level_section_names() -> None:
+    chunks = chunk_markdown(
+        "## Warranty\n\nThree years.\n\n## Awning\n\nRetract in wind.\n", "Export"
+    )
+    assert [c.metadata["section"] for c in chunks] == ["Warranty", "Awning"]

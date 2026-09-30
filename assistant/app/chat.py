@@ -41,7 +41,9 @@ def sse(event: str, data: Any) -> str:
 
 def conversation_tokens(conn: psycopg.Connection, conversation_id: uuid.UUID) -> int:
     row = conn.execute(
-        "SELECT coalesce(sum((usage->>'input_tokens')::int + (usage->>'output_tokens')::int), 0)"
+        "SELECT coalesce(sum((usage->>'input_tokens')::int + (usage->>'output_tokens')::int"
+        " + coalesce((usage->>'cache_read_input_tokens')::int, 0)"
+        " + coalesce((usage->>'cache_creation_input_tokens')::int, 0)), 0)"
         " FROM rag.messages WHERE conversation_id = %s AND usage IS NOT NULL",
         (conversation_id,),
     ).fetchone()
@@ -63,8 +65,9 @@ def history_for(conn: psycopg.Connection, conversation_id: uuid.UUID) -> list[di
     ]
 
 
+@functools.cache
 def get_client() -> anthropic.AsyncAnthropic:
-    return anthropic.AsyncAnthropic()
+    return anthropic.AsyncAnthropic()  # one connection pool per process
 
 
 def get_conn() -> Iterator[psycopg.Connection]:
@@ -127,9 +130,12 @@ async def chat(
         conn.commit()
 
     history = history_for(conn, conversation_id)
+    # Follow-ups ("and the fabric?") retrieve on the previous question too.
+    previous = [m["content"] for m in history if m["role"] == "user"][-1:]
+    query = " ".join([*previous, body.message])
     with tracer.start_as_current_span("retrieval") as span:
         hits = await anyio.to_thread.run_sync(
-            lambda: retrieve(conn, emb, body.message, dealer_id=user.dealer_id)
+            lambda: retrieve(conn, emb, query, dealer_id=user.dealer_id)
         )
         span.set_attribute("retrieval.hits", len(hits))
     request = build_request(history, body.message, hits)
@@ -170,11 +176,8 @@ async def chat(
                                 json.dumps({**data.usage, "model": MODEL}),
                             ),
                         )
-                    yield sse("done", {"stop_reason": data.stop_reason, "usage": data.usage})
-        except anthropic.APIStatusError as e:
-            yield sse("error", {"status": e.status_code, "message": e.message})
-        except anthropic.APIConnectionError:
-            yield sse("error", {"status": 503, "message": "Could not reach the model API."})
+                    if data.stop_reason != "error":
+                        yield sse("done", {"stop_reason": data.stop_reason, "usage": data.usage})
         except Exception as e:  # tool transport failures (api down, token rejected by /mcp)
             log.exception("chat turn failed")
             yield sse("error", {"status": 502, "message": f"Assistant error: {type(e).__name__}"})

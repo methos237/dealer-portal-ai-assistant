@@ -92,7 +92,11 @@ def build_request(history: list[dict], question: str, hits: list[Hit]) -> dict[s
             *history,
             {
                 "role": "user",
-                "content": [*(document_block(h) for h in hits), {"type": "text", "text": question}],
+                "content": [
+                    *(document_block(h) for h in hits),
+                    # Second breakpoint: history + documents stay cached across the tool loop.
+                    {"type": "text", "text": question, "cache_control": {"type": "ephemeral"}},
+                ],
             },
         ],
     }
@@ -185,41 +189,39 @@ async def run_turn(
     runner = client.beta.messages.tool_runner(
         **request, tools=tools, stream=True, max_iterations=MAX_ITERATIONS
     )
+    try:
+        async for event in _drive(runner, request, result, hits):
+            yield event
+    except anthropic.APIStatusError as e:
+        log.warning("model API %s: %s", e.status_code, e.message)
+        result.stop_reason = "error"
+        yield "error", {"status": e.status_code, "message": f"Model API error ({e.status_code})."}
+    except anthropic.APIConnectionError:
+        result.stop_reason = "error"
+        yield "error", {"status": 503, "message": "Could not reach the model API."}
+    if result.stop_reason == "tool_use":  # MAX_ITERATIONS hit with tools still pending
+        note = "I reached the step limit before finishing. Ask again with a narrower question."
+        result.content.append({"type": "text", "text": note, "citations": []})
+        yield "text", {"text": note}
+    yield "done", result
+
+
+async def _drive(
+    runner: Any, request: dict, result: TurnResult, hits: list[Hit]
+) -> AsyncIterator[tuple[str, Any]]:
     async for stream in runner:
         # One span per model call, carrying the gen_ai.* fields cost and behaviour are judged by.
-        span = tracer.start_span(
+        with tracer.start_as_current_span(
             "claude.messages", attributes={"gen_ai.request.model": request["model"]}
-        )
-        async for event in stream:
-            if event.type == "content_block_start" and event.content_block.type == "text":
-                result.content.append({"type": "text", "text": "", "citations": []})
-            elif event.type == "content_block_delta":
-                delta = event.delta
-                if delta.type == "text_delta":
-                    if not result.content or result.content[-1]["type"] != "text":
-                        result.content.append({"type": "text", "text": "", "citations": []})
-                    result.content[-1]["text"] += delta.text
-                    yield "text", {"text": delta.text}
-                elif delta.type == "citations_delta":
-                    c = delta.citation
-                    hit = hits[c.document_index] if c.document_index < len(hits) else None
-                    citation = {
-                        "cited_text": c.cited_text,
-                        "document_index": c.document_index,
-                        "document_title": c.document_title,
-                        "start": getattr(c, "start_char_index", None),
-                        "end": getattr(c, "end_char_index", None),
-                        "source": source_dict(hit) if hit else None,
-                    }
-                    result.content[-1]["citations"].append(citation)
-                    yield "citation", citation
-        message = await stream.get_final_message()
-        for k in USAGE_KEYS:
-            result.usage[k] += getattr(message.usage, k, 0) or 0
-            span.set_attribute(f"gen_ai.usage.{k}", getattr(message.usage, k, 0) or 0)
-        result.stop_reason = message.stop_reason
-        span.set_attribute("gen_ai.response.finish_reasons", [message.stop_reason or ""])
-        span.end()
+        ) as span:
+            async for event in _stream_events(stream, result, hits):
+                yield event
+            message = await stream.get_final_message()
+            for k in USAGE_KEYS:
+                result.usage[k] += getattr(message.usage, k, 0) or 0
+                span.set_attribute(f"gen_ai.usage.{k}", getattr(message.usage, k, 0) or 0)
+            result.stop_reason = message.stop_reason
+            span.set_attribute("gen_ai.response.finish_reasons", [message.stop_reason or ""])
         if message.stop_reason != "tool_use":
             continue  # end_turn, refusal, max_tokens: runner ends the loop; never run tools here
 
@@ -248,7 +250,34 @@ async def run_turn(
             if draft:
                 result.drafts.append(draft)
                 yield "confirm", draft
-    yield "done", result
+
+
+async def _stream_events(
+    stream: Any, result: TurnResult, hits: list[Hit]
+) -> AsyncIterator[tuple[str, Any]]:
+    async for event in stream:
+        if event.type == "content_block_start" and event.content_block.type == "text":
+            result.content.append({"type": "text", "text": "", "citations": []})
+        elif event.type == "content_block_delta":
+            delta = event.delta
+            if delta.type == "text_delta":
+                if not result.content or result.content[-1]["type"] != "text":
+                    result.content.append({"type": "text", "text": "", "citations": []})
+                result.content[-1]["text"] += delta.text
+                yield "text", {"text": delta.text}
+            elif delta.type == "citations_delta":
+                c = delta.citation
+                hit = hits[c.document_index] if c.document_index < len(hits) else None
+                citation = {
+                    "cited_text": c.cited_text,
+                    "document_index": c.document_index,
+                    "document_title": c.document_title,
+                    "start": getattr(c, "start_char_index", None),
+                    "end": getattr(c, "end_char_index", None),
+                    "source": source_dict(hit) if hit else None,
+                }
+                result.content[-1]["citations"].append(citation)
+                yield "citation", citation
 
 
 def source_dict(h: Hit) -> dict:

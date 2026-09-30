@@ -4,7 +4,7 @@ A separate call from chat because citations and structured outputs cannot share 
 """
 
 import anthropic
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.agent import MODEL
@@ -39,7 +39,7 @@ async def extract_claim(
 ) -> ClaimExtraction:
     response = await client.messages.parse(
         model=MODEL,
-        max_tokens=2048,
+        max_tokens=8000,  # adaptive thinking shares this budget
         output_format=ClaimExtraction,
         system=(
             "Extract warranty claim details from the user's pasted text. Copy the VIN exactly if"
@@ -48,4 +48,6 @@ async def extract_claim(
         ),
         messages=[{"role": "user", "content": body.text}],
     )
+    if response.parsed_output is None:
+        raise HTTPException(502, f"Extraction stopped early ({response.stop_reason}).")
     return response.parsed_output

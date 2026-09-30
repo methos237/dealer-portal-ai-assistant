@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 
 WINDOW_TOKENS = 800
 OVERLAP_TOKENS = 100
+CHUNKER_VERSION = f"w{WINDOW_TOKENS}o{OVERLAP_TOKENS}".encode()  # part of the content hash
 TOKENS_PER_WORD = 1.3
 WINDOW_WORDS = int(WINDOW_TOKENS / TOKENS_PER_WORD)
 OVERLAP_WORDS = int(OVERLAP_TOKENS / TOKENS_PER_WORD)
@@ -37,27 +38,29 @@ def _windows(words: list[str]) -> list[list[str]]:
 def chunk_markdown(text: str, title: str) -> list[Chunk]:
     """Split on headings, keep the heading path as context, then window long sections."""
     sections: list[tuple[list[str], list[str]]] = []  # (heading path, lines)
-    path: list[str] = []
+    path: list[tuple[int, str]] = []  # (level, heading); the H1 is the title, not a section
     lines: list[str] = []
     for line in text.splitlines():
         m = _HEADING.match(line)
         if m:
             if lines:
-                sections.append((path.copy(), lines))
+                sections.append(([h for lvl, h in path if lvl > 1], lines))
             level, heading = len(m.group(1)), m.group(2)
-            path = path[: level - 1] + [heading]
+            while path and path[-1][0] >= level:
+                path.pop()
+            path.append((level, heading))
             lines = []
         else:
             lines.append(line)
     if lines:
-        sections.append((path.copy(), lines))
+        sections.append(([h for lvl, h in path if lvl > 1], lines))
 
     chunks: list[Chunk] = []
     for sec_path, sec_lines in sections:
         body = "\n".join(sec_lines).strip()
         if not body:
             continue
-        section = " > ".join(sec_path[1:])  # drop the document title level
+        section = " > ".join(sec_path)
         prefix = f"{title}" + (f" — {section}" if section else "")
         for window in _windows(body.split()):
             chunks.append(

@@ -14,7 +14,7 @@ from pgvector import Vector
 from pgvector.psycopg import register_vector
 from pypdf import PdfReader
 
-from rag.chunking import Chunk, chunk_markdown, chunk_pdf_pages
+from rag.chunking import CHUNKER_VERSION, Chunk, chunk_markdown, chunk_pdf_pages
 from rag.embedder import Embedder, get_embedder
 from rag.settings import database_url
 
@@ -37,7 +37,7 @@ def load(path: Path) -> tuple[str, list[Chunk]]:
 
 def ingest_file(conn: psycopg.Connection, embedder: Embedder, path: Path) -> str:
     """Index one file. Returns 'skipped' when the content hash is unchanged, else 'indexed'."""
-    content_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+    content_hash = hashlib.sha256(path.read_bytes() + CHUNKER_VERSION).hexdigest()
     existing = conn.execute(
         "SELECT id, content_hash FROM rag.documents WHERE path = %s", (path.name,)
     ).fetchone()

@@ -22,6 +22,9 @@ class RedactingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.msg = redact(record.getMessage())
         record.args = ()
+        if record.exc_info:  # tracebacks carry tool inputs; format now so they get redacted too
+            record.exc_text = redact(logging.Formatter().formatException(record.exc_info))
+            record.exc_info = None
         return True
 
 

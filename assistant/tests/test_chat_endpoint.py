@@ -80,7 +80,11 @@ def test_chat_streams_events_and_persists_both_turns(client) -> None:
     # documents went to the model as citation-enabled document blocks
     sent = fake.requests[0]["messages"][-1]["content"]
     assert sent[0]["type"] == "document" and sent[0]["citations"] == {"enabled": True}
-    assert sent[-1] == {"type": "text", "text": "When must the awning be retracted?"}
+    assert sent[-1] == {
+        "type": "text",
+        "text": "When must the awning be retracted?",
+        "cache_control": {"type": "ephemeral"},
+    }
 
     # second turn replays history as plain text
     res2 = http.post(

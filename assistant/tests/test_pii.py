@@ -1,6 +1,6 @@
 import logging
 
-from app.pii import RedactingFilter, redact
+from app.pii import RedactingFilter, get_logger, redact
 
 
 def test_redacts_email_phone_and_vin() -> None:
@@ -14,3 +14,15 @@ def test_filter_redacts_formatted_log_records(caplog) -> None:
     with caplog.at_level(logging.INFO, logger="test.pii"):
         logger.info("user %s asked about %s", "lee@lakeshore.example", "1THRS36X4RN000004")
     assert caplog.records[-1].getMessage() == "user [email] asked about [vin]"
+
+
+def test_filter_redacts_tracebacks(caplog) -> None:
+    logger = get_logger("assistant.test.exc")
+    with caplog.at_level(logging.INFO, logger="assistant.test.exc"):
+        try:
+            raise ValueError("VIN 1THRA24X0RN000001 rejected for ceo@example.com")
+        except ValueError:
+            logger.exception("tool failed")
+    text = caplog.text
+    assert "1THRA24X0RN000001" not in text and "ceo@example.com" not in text
+    assert "[vin]" in text and "[email]" in text
