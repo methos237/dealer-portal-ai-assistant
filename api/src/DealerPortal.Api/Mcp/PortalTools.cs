@@ -64,7 +64,7 @@ public class PortalTools(PortalDbContext db, CurrentUser me)
     {
         var unit = await UnitByVin(vin);
         var expires = unit.DeliveryDate.AddMonths(PortalEndpoints.WarrantyMonths);
-        var monthsLeft = (expires.Year - Today.Year) * 12 + expires.Month - Today.Month;
+        var monthsLeft = (expires.Year - Today.Year) * 12 + expires.Month - Today.Month - (expires.Day < Today.Day ? 1 : 0);
         return new WarrantyDto(unit.Vin, unit.DeliveryDate, expires, expires >= Today, Math.Max(monthsLeft, 0));
     }
 
@@ -122,6 +122,11 @@ public class PortalTools(PortalDbContext db, CurrentUser me)
         if (me.DealerId is null)
         {
             throw new McpException("Thor.Admin accounts are not attached to a dealer and cannot order parts.");
+        }
+
+        if (lines is not { Count: > 0 } || lines.Any(l => l is null || string.IsNullOrWhiteSpace(l.Sku) || l.Quantity is < 1 or > 10_000))
+        {
+            throw new McpException("Order at least one line; every line needs a SKU and a quantity from 1 to 10000.");
         }
 
         int? unitId = null;

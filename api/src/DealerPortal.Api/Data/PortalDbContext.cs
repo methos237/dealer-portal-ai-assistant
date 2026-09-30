@@ -26,6 +26,9 @@ public class PortalDbContext(DbContextOptions<PortalDbContext> options, CurrentU
         b.Entity<Unit>().HasIndex(u => u.Vin).IsUnique();
         b.Entity<Part>().HasKey(p => p.Sku);
         b.Entity<PartsOrderLine>().ToTable("parts_order_lines");
+        // Every tenant-scoped list filters on dealer_id and orders by created_at.
+        b.Entity<Claim>().HasIndex(c => new { c.DealerId, c.CreatedAt });
+        b.Entity<PartsOrder>().HasIndex(o => new { o.DealerId, o.CreatedAt });
 
         b.Entity<Claim>().Property(c => c.Status).HasConversion<string>();
         b.Entity<PartsOrder>().Property(o => o.Status).HasConversion<string>();

@@ -23,11 +23,18 @@ public static class ReportsEndpoints
         }
 
         // One cache entry per dealer scope; Thor.Admin (null dealer) shares the unfiltered entry.
-        var summary = await cache.GetOrCreateAsync($"reports:{me.DealerId}", e =>
+        try
         {
-            e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
-            return powerBi.SummaryAsync(me.DealerId, ct);
-        });
-        return TypedResults.Ok(summary!);
+            var summary = await cache.GetOrCreateAsync($"reports:{me.DealerId}", e =>
+            {
+                e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+                return powerBi.SummaryAsync(me.DealerId, ct);
+            });
+            return TypedResults.Ok(summary!);
+        }
+        catch (Exception e) when (e is HttpRequestException or Microsoft.Identity.Client.MsalException)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway, title: "Power BI unavailable", detail: e.Message);
+        }
     }
 }

@@ -16,7 +16,7 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks().AddDbContextCheck<PortalDbContext>();
 builder.Services.AddProblemDetails();
 builder.Services.AddValidation();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
