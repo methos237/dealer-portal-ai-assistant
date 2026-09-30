@@ -28,7 +28,7 @@ type Draft = {
   path: string;
   body: Record<string, unknown> | null;
   summary: string;
-  status?: "pending" | "done" | "failed";
+  status?: "pending" | "sending" | "done" | "failed";
   result?: string;
 };
 type Message = {
@@ -56,6 +56,11 @@ type Chunk = {
 
 const api = (path: string, init?: RequestInit) =>
   fetch(`/api/assistant/${path}`, init);
+const getJson = async <T,>(path: string): Promise<T> => {
+  const r = await api(path);
+  if (!r.ok) throw new Error((await r.text()) || `assistant ${r.status}`);
+  return r.json() as Promise<T>;
+};
 
 /** showCost: Thor.Admin sees the running USD cost of the conversation (GET /conversations/{id}/cost). */
 export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
@@ -68,15 +73,22 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [chunk, setChunk] = useState<Chunk | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+  const opening = useRef<string | null>(null);
+  const aborter = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    api("conversations")
-      .then((r) =>
-        r.ok ? r.json() : Promise.reject(new Error(`assistant ${r.status}`)),
-      )
+    getJson<Conversation[]>("conversations")
       .then(setConversations)
       .catch((e: Error) => setError(e.message));
+    return () => aborter.current?.abort();
   }, []);
+
+  useEffect(() => {
+    if (!chunk) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setChunk(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chunk]);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
@@ -85,24 +97,30 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
   async function open(id: string) {
     setConversationId(id);
     setError(null);
+    opening.current = id;
     void loadCost(id);
-    const detail = await api(`conversations/${id}`).then((r) => r.json());
-    setMessages(
-      detail.messages.map(
-        (m: {
+    try {
+      const detail = await getJson<{
+        messages: {
           role: Message["role"];
           content: Block[];
           usage?: Record<string, number>;
-        }) => ({
+        }[];
+      }>(`conversations/${id}`);
+      if (opening.current !== id) return; // a later click won
+      setMessages(
+        detail.messages.map((m) => ({
           role: m.role,
           blocks: m.content.map((b) => ({
             ...b,
             citations: b.citations ?? [],
           })),
           usage: m.usage,
-        }),
-      ),
-    );
+        })),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   function reset() {
@@ -130,6 +148,7 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
         blocks: [{ type: "text", text: "", citations: [] }],
       },
     ]);
+    aborter.current = new AbortController();
     try {
       const res = await api("chat", {
         method: "POST",
@@ -138,6 +157,7 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
           conversation_id: conversationId,
           message: question,
         }),
+        signal: aborter.current.signal,
       });
       if (!res.ok)
         throw new Error((await res.text()) || `assistant ${res.status}`);
@@ -201,14 +221,35 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (!(err instanceof DOMException && err.name === "AbortError"))
+        setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
   }
 
+  const setDraft = (
+    messageIndex: number,
+    draftIndex: number,
+    patch: Partial<Draft>,
+  ) =>
+    setMessages((m) =>
+      m.map((msg, i) =>
+        i !== messageIndex
+          ? msg
+          : {
+              ...msg,
+              drafts: msg.drafts!.map((d, j) =>
+                j !== draftIndex ? d : { ...d, ...patch },
+              ),
+            },
+      ),
+    );
+
   async function confirm(messageIndex: number, draftIndex: number) {
     const draft = messages[messageIndex].drafts![draftIndex];
+    if (draft.status !== "pending") return;
+    setDraft(messageIndex, draftIndex, { status: "sending" }); // before the await: no double submit
     const result =
       draft.kind === "claim"
         ? await createClaim(draft.body as unknown as NewClaim)
@@ -217,35 +258,29 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
           : await approveClaim(
               Number(draft.path.match(/\/claims\/(\d+)\/approve/)?.[1]),
             );
-    setMessages((m) =>
-      m.map((msg, i) =>
-        i !== messageIndex
-          ? msg
-          : {
-              ...msg,
-              drafts: msg.drafts!.map((d, j) =>
-                j !== draftIndex
-                  ? d
-                  : result.ok
-                    ? {
-                        ...d,
-                        status: "done",
-                        result: `Done. ${"id" in result.value ? `Record #${result.value.id}.` : ""}`,
-                      }
-                    : { ...d, status: "failed", result: result.error },
-              ),
-            },
-      ),
+    setDraft(
+      messageIndex,
+      draftIndex,
+      result.ok
+        ? {
+            status: "done",
+            result: `Done. ${"id" in result.value ? `Record #${result.value.id}.` : ""}`,
+          }
+        : { status: "failed", result: result.error },
     );
   }
 
-  async function showChunk(id: number) {
-    setChunk(await api(`chunks/${id}`).then((r) => r.json()));
+  function showChunk(id: number) {
+    getJson<Chunk>(`chunks/${id}`)
+      .then(setChunk)
+      .catch((e: Error) => setError(e.message));
   }
 
-  async function loadCost(id: string) {
+  function loadCost(id: string) {
     if (showCost)
-      setCost(await api(`conversations/${id}/cost`).then((r) => r.json()));
+      getJson<Cost>(`conversations/${id}/cost`)
+        .then(setCost)
+        .catch((e: Error) => setError(e.message));
   }
 
   return (
@@ -311,6 +346,7 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
                             key={sourceKey(c)}
                             type="button"
                             title={c.cited_text}
+                            aria-label={`Source ${n}: ${c.source?.title ?? c.document_title}`}
                             onClick={() =>
                               c.source && showChunk(c.source.chunk_id)
                             }
@@ -394,16 +430,19 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
                         Confirm {d.kind.replace("_", " ")}
                       </div>
                       <p className="mt-1">{d.summary}</p>
-                      {d.status === "pending" && (
+                      {(d.status === "pending" || d.status === "sending") && (
                         <button
                           type="button"
                           onClick={() => confirm(i, k)}
+                          disabled={d.status === "sending"}
                           className="btn btn-ink btn-sm mt-3"
                         >
-                          Confirm and send
+                          {d.status === "sending"
+                            ? "Sending…"
+                            : "Confirm and send"}
                         </button>
                       )}
-                      {d.status !== "pending" && (
+                      {d.status !== "pending" && d.status !== "sending" && (
                         <p
                           className={`mt-2 text-xs font-medium ${d.status === "failed" ? "text-error-ink" : "text-success-ink"}`}
                         >
@@ -479,6 +518,8 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
         <div
           role="dialog"
           aria-label="Source"
+          tabIndex={-1}
+          ref={(el) => el?.focus()}
           className="card fixed inset-y-3 right-3 z-30 w-[min(440px,calc(100vw-1.5rem))] overflow-y-auto p-5 shadow-bar"
         >
           <div className="flex items-start justify-between gap-3">

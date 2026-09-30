@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { auth } from "@/auth";
 import { apiRequest } from "./api-client";
 import type {
@@ -12,9 +13,10 @@ import type {
 } from "./types";
 
 const baseUrl = process.env.PORTAL_API_URL ?? "http://localhost:5080";
+const getSession = cache(auth); // one JWT decode (and refresh attempt) per request, not per call
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const session = await auth();
+  const session = await getSession();
   return apiRequest<T>(baseUrl, session?.accessToken ?? "", path, init);
 }
 

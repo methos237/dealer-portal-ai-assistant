@@ -6,7 +6,7 @@ import { post } from "./api";
 import type { Claim, NewClaim, NewPartsOrder, PartsOrder } from "./types";
 
 export type ActionResult<T> =
-  { ok: true; value: T } | { ok: false; error: string };
+  { ok: true; value: T } | { ok: false; error: string; status?: number };
 
 async function run<T>(
   fn: () => Promise<T>,
@@ -21,7 +21,11 @@ async function run<T>(
       const details = e.errors
         ? Object.values(e.errors).flat().join(" ")
         : e.detail;
-      return { ok: false, error: details ? `${e.title}. ${details}` : e.title };
+      return {
+        ok: false,
+        error: details ? `${e.title}. ${details}` : e.title,
+        status: e.status,
+      };
     }
     return { ok: false, error: "The portal API is unreachable." };
   }

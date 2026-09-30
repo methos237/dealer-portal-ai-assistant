@@ -3,7 +3,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
+# Revision for the precached offline page; images.yml passes the commit sha.
+ARG BUILD_ID=dev
+ENV NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_BUILD_ID=$BUILD_ID
 RUN npm run build
 
 FROM node:26-alpine
