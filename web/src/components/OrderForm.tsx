@@ -7,8 +7,7 @@ import { validatePartsOrder } from "@/lib/validation";
 import type { Part, Unit } from "@/lib/types";
 import { Close } from "./icons";
 
-const money = (v: number) =>
-  v.toLocaleString("en-US", { style: "currency", currency: "USD" });
+import { money } from "@/lib/format";
 
 export function OrderForm({ parts, units }: { parts: Part[]; units: Unit[] }) {
   const router = useRouter();

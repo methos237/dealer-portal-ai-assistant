@@ -20,9 +20,7 @@ export default function PortalError({
       </p>
       {/* Production redacts server error messages to a generic React notice; keep the digest for logs. */}
       <p className="mt-3 font-mono text-xs text-fg-subtle">
-        {process.env.NODE_ENV === "production"
-          ? error.digest && `Reference ${error.digest}`
-          : error.message}
+        {error.digest ? `Reference ${error.digest}` : error.message}
       </p>
       <div className="mt-6 flex flex-wrap gap-2">
         <button onClick={reset} className="btn btn-primary">

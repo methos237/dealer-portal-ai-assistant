@@ -170,42 +170,31 @@ export function AssistantPanel({ showCost = false }: { showCost?: boolean }) {
             patchLast(m, (b) => ({ ...b, citations: [...b.citations, data] })),
           );
         } else if (ev.event === "tool") {
-          setMessages((m) => {
-            const last = m[m.length - 1];
-            return [
-              ...m.slice(0, -1),
-              {
-                ...last,
-                tools: [...(last.tools ?? []), data],
-                blocks: [
-                  ...last.blocks,
-                  { type: "text", text: "", citations: [] },
-                ],
-              },
-            ];
-          });
+          setMessages((m) =>
+            patchMsg(m, (last) => ({
+              ...last,
+              tools: [...(last.tools ?? []), data],
+              blocks: [
+                ...last.blocks,
+                { type: "text", text: "", citations: [] },
+              ],
+            })),
+          );
         } else if (ev.event === "confirm") {
-          setMessages((m) => {
-            const last = m[m.length - 1];
-            return [
-              ...m.slice(0, -1),
-              {
-                ...last,
-                drafts: [
-                  ...(last.drafts ?? []),
-                  { ...data, status: "pending" },
-                ],
-              },
-            ];
-          });
+          setMessages((m) =>
+            patchMsg(m, (last) => ({
+              ...last,
+              drafts: [...(last.drafts ?? []), { ...data, status: "pending" }],
+            })),
+          );
         } else if (ev.event === "done") {
-          setMessages((m) => {
-            const last = m[m.length - 1];
-            return [
-              ...m.slice(0, -1),
-              { ...last, usage: data.usage, stopReason: data.stop_reason },
-            ];
-          });
+          setMessages((m) =>
+            patchMsg(m, (last) => ({
+              ...last,
+              usage: data.usage,
+              stopReason: data.stop_reason,
+            })),
+          );
           if (currentId) void loadCost(currentId);
         } else if (ev.event === "error") {
           setError(data.message);
@@ -528,10 +517,15 @@ function uniqueBy<T>(items: T[], key: (t: T) => string): T[] {
   return items.filter((t) => !seen.has(key(t)) && seen.add(key(t)));
 }
 
+function patchMsg(messages: Message[], fn: (m: Message) => Message): Message[] {
+  return [...messages.slice(0, -1), fn(messages[messages.length - 1])];
+}
+
 function patchLast(messages: Message[], fn: (b: Block) => Block): Message[] {
-  const last = messages[messages.length - 1];
-  const blocks = last.blocks.length
-    ? [...last.blocks.slice(0, -1), fn(last.blocks[last.blocks.length - 1])]
-    : [fn({ type: "text", text: "", citations: [] })];
-  return [...messages.slice(0, -1), { ...last, blocks }];
+  return patchMsg(messages, (last) => ({
+    ...last,
+    blocks: last.blocks.length
+      ? [...last.blocks.slice(0, -1), fn(last.blocks[last.blocks.length - 1])]
+      : [fn({ type: "text", text: "", citations: [] })],
+  }));
 }

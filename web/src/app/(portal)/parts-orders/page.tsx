@@ -4,8 +4,7 @@ import { listPartsOrders } from "@/lib/api";
 
 export const metadata = { title: "Parts orders" };
 
-const money = (v: number) =>
-  v.toLocaleString("en-US", { style: "currency", currency: "USD" });
+import { money } from "@/lib/format";
 
 export default async function PartsOrdersPage() {
   const orders = await listPartsOrders();

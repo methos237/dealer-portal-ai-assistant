@@ -5,8 +5,7 @@ import { ClaimStatusTag, WarrantyTag } from "@/components/StatusTag";
 import { getUnit, listClaims } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 
-const money = (v: number) =>
-  v.toLocaleString("en-US", { style: "currency", currency: "USD" });
+import { money } from "@/lib/format";
 
 export default async function UnitPage({
   params,

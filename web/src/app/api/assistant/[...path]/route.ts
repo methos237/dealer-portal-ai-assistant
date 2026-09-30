@@ -20,8 +20,6 @@ async function proxy(
     },
     body: req.method === "GET" ? undefined : await req.text(),
     cache: "no-store",
-    // @ts-expect-error Node fetch needs duplex for streamed bodies
-    duplex: "half",
   });
   return new Response(res.body, {
     status: res.status,

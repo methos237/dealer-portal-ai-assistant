@@ -1,13 +1,12 @@
 import { BarChart } from "@/components/BarChart";
 import { getReportSummary } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
-import { fillMonths, monthLabel, toBars } from "@/lib/reports";
+import { fillMonths, monthLabel } from "@/lib/reports";
 import type { ReportSummary } from "@/lib/types";
 
 export const metadata = { title: "Reports" };
 
-const money = (v: number) =>
-  v.toLocaleString("en-US", { style: "currency", currency: "USD" });
+import { money } from "@/lib/format";
 
 export default async function ReportsPage() {
   let summary: ReportSummary;
@@ -32,9 +31,10 @@ export default async function ReportsPage() {
   }
   const { totals, topParts } = summary;
   const months = fillMonths(summary.claimsByMonth);
-  const bars = toBars(
-    months.map((m) => ({ label: monthLabel(m.month), value: m.count })),
-  );
+  const bars = months.map((m) => ({
+    label: monthLabel(m.month),
+    value: m.count,
+  }));
   const tiles = [
     { label: "Claims", value: String(totals.claimCount) },
     { label: "Claim amount", value: money(totals.claimAmount) },

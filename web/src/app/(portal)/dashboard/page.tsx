@@ -5,8 +5,7 @@ import { getMe, listClaims, listPartsOrders, listUnits } from "@/lib/api";
 
 export const metadata = { title: "Dashboard" };
 
-const money = (v: number) =>
-  v.toLocaleString("en-US", { style: "currency", currency: "USD" });
+import { money } from "@/lib/format";
 
 export default async function DashboardPage() {
   const [me, units, claims, orders] = await Promise.all([
