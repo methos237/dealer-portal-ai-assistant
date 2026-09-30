@@ -47,8 +47,7 @@ public class PortalTools(PortalDbContext db, CurrentUser me)
     [McpServerTool(Name = "get_unit"), Description("Look up one unit by VIN: model, delivery date and warranty status.")]
     public async Task<UnitDto> GetUnit([Description("Full 17-character VIN")] string vin)
     {
-        var unit = await db.Units.FirstOrDefaultAsync(u => u.Vin == vin)
-                   ?? throw new McpException($"No unit with VIN {vin} is visible to you.");
+        var unit = await UnitByVin(vin);
         return ToDto(unit);
     }
 
@@ -63,8 +62,7 @@ public class PortalTools(PortalDbContext db, CurrentUser me)
     [McpServerTool(Name = "check_warranty"), Description("Whether a unit is within the 36-month warranty and how many months remain.")]
     public async Task<WarrantyDto> CheckWarranty([Description("Full 17-character VIN")] string vin)
     {
-        var unit = await db.Units.FirstOrDefaultAsync(u => u.Vin == vin)
-                   ?? throw new McpException($"No unit with VIN {vin} is visible to you.");
+        var unit = await UnitByVin(vin);
         var expires = unit.DeliveryDate.AddMonths(PortalEndpoints.WarrantyMonths);
         var monthsLeft = (expires.Year - Today.Year) * 12 + expires.Month - Today.Month;
         return new WarrantyDto(unit.Vin, unit.DeliveryDate, expires, expires >= Today, Math.Max(monthsLeft, 0));
@@ -98,8 +96,7 @@ public class PortalTools(PortalDbContext db, CurrentUser me)
             throw new McpException("Thor.Admin accounts are not attached to a dealer and cannot file claims.");
         }
 
-        var unit = await db.Units.FirstOrDefaultAsync(u => u.Vin == vin)
-                   ?? throw new McpException($"No unit with VIN {vin} is visible to you.");
+        var unit = await UnitByVin(vin);
         if (unit.DeliveryDate.AddMonths(PortalEndpoints.WarrantyMonths) < Today)
         {
             throw new McpException($"Unit {vin} was delivered on {unit.DeliveryDate:yyyy-MM-dd} and is out of the {PortalEndpoints.WarrantyMonths}-month warranty.");
@@ -130,8 +127,7 @@ public class PortalTools(PortalDbContext db, CurrentUser me)
         int? unitId = null;
         if (vin is not null)
         {
-            unitId = (await db.Units.FirstOrDefaultAsync(u => u.Vin == vin))?.Id
-                     ?? throw new McpException($"No unit with VIN {vin} is visible to you.");
+            unitId = (await UnitByVin(vin)).Id;
         }
 
         var skus = lines.Select(l => l.Sku).Distinct().ToList();
@@ -163,6 +159,10 @@ public class PortalTools(PortalDbContext db, CurrentUser me)
         return new Draft("approve_claim", "POST", $"/claims/{id}/approve", null,
             $"Approve claim {id} for {claim.Amount:N2} USD on {claim.Unit!.Vin}.");
     }
+
+    async Task<Unit> UnitByVin(string vin) =>
+        await db.Units.FirstOrDefaultAsync(u => u.Vin == vin)
+        ?? throw new McpException($"No unit with VIN {vin} is visible to you.");
 
     static UnitDto ToDto(Unit u) => new(u.Id, u.Vin, u.Model, u.DeliveryDate, u.DeliveryDate.AddMonths(PortalEndpoints.WarrantyMonths) >= Today);
 }

@@ -8,13 +8,8 @@ namespace DealerPortal.Api.Reports;
 
 public static class ReportsEndpoints
 {
-    public static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(5);
-
-    public static IEndpointRouteBuilder MapReports(this IEndpointRouteBuilder app)
-    {
+    public static void MapReports(this IEndpointRouteBuilder app) =>
         app.MapGet("/reports/summary", Summary).RequireAuthorization(Policies.DealerUser);
-        return app;
-    }
 
     static async Task<Results<Ok<ReportSummaryDto>, ProblemHttpResult>> Summary(
         CurrentUser me, PowerBiClient powerBi, IMemoryCache cache, IOptions<PowerBiOptions> options, CancellationToken ct)
@@ -30,7 +25,7 @@ public static class ReportsEndpoints
         // One cache entry per dealer scope; Thor.Admin (null dealer) shares the unfiltered entry.
         var summary = await cache.GetOrCreateAsync($"reports:{me.DealerId}", e =>
         {
-            e.AbsoluteExpirationRelativeToNow = CacheFor;
+            e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
             return powerBi.SummaryAsync(me.DealerId, ct);
         });
         return TypedResults.Ok(summary!);

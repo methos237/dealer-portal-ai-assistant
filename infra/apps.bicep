@@ -56,8 +56,6 @@ var settings = {
     WEBSITES_PORT: '5080'
     ASPNETCORE_ENVIRONMENT: 'Production'
     ConnectionStrings__Portal: '@${kv}postgres-connection-api)'
-    Database__MigrateOnStart: 'true'
-    Database__SeedOnStart: 'true'
     AzureAd__TenantId: entraTenantId
     AzureAd__ClientId: apiClientId
     // Power BI REST as the dealer-portal-m365 app; ids come from GitHub variables after scripts/fabric-up.sh

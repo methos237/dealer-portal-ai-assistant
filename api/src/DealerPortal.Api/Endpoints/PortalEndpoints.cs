@@ -11,9 +11,9 @@ public static class PortalEndpoints
     public const int WarrantyMonths = 36;
 
     /// <summary>Claims above this amount need Thor.Admin approval.</summary>
-    public static readonly decimal ApprovalThreshold = 5_000.00m;
+    public const decimal ApprovalThreshold = 5_000.00m;
 
-    public static IEndpointRouteBuilder MapPortal(this IEndpointRouteBuilder app)
+    public static void MapPortal(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("").RequireAuthorization(Policies.DealerUser);
 
@@ -27,7 +27,6 @@ public static class PortalEndpoints
         g.MapPost("/parts-orders", CreatePartsOrder);
         g.MapGet("/parts", ListParts);
         g.MapGet("/documents", ListDocuments);
-        return app;
     }
 
     static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);

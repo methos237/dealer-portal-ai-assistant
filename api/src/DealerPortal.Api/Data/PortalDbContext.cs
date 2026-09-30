@@ -13,6 +13,10 @@ public class PortalDbContext(DbContextOptions<PortalDbContext> options, CurrentU
     public DbSet<PartsOrder> PartsOrders => Set<PartsOrder>();
     public DbSet<Document> Documents => Set<Document>();
 
+    // Every decimal in the model is money.
+    protected override void ConfigureConventions(ModelConfigurationBuilder c) =>
+        c.Properties<decimal>().HaveColumnType("numeric(12,2)");
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema("portal");
@@ -26,17 +30,6 @@ public class PortalDbContext(DbContextOptions<PortalDbContext> options, CurrentU
         b.Entity<Claim>().Property(c => c.Status).HasConversion<string>();
         b.Entity<PartsOrder>().Property(o => o.Status).HasConversion<string>();
         b.Entity<Document>().Property(d => d.Kind).HasConversion<string>();
-
-        foreach (var money in new[]
-        {
-            b.Entity<Claim>().Property(c => c.Amount),
-            b.Entity<Part>().Property(p => p.UnitPrice),
-            b.Entity<PartsOrder>().Property(o => o.Total),
-            b.Entity<PartsOrderLine>().Property(l => l.UnitPrice),
-        })
-        {
-            money.HasColumnType("numeric(12,2)");
-        }
 
         // Tenancy: Dealer.* roles see their own dealer only; Thor.Admin (DealerId null) sees all.
         b.Entity<Unit>().HasQueryFilter(u => currentUser.IsThorAdmin || u.DealerId == currentUser.DealerId);

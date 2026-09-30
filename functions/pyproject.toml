@@ -5,7 +5,6 @@ requires-python = ">=3.13"
 dependencies = [
     "assistant",
     "azure-functions>=1.25.0",
-    "azure-identity>=1.25.3",
 ]
 
 [tool.uv.sources]
@@ -15,8 +14,4 @@ assistant = { path = "../assistant", editable = true }
 dev = ["ruff>=0.16.9"]
 
 [tool.ruff]
-line-length = 100
-target-version = "py313"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+extend = "../assistant/pyproject.toml"
