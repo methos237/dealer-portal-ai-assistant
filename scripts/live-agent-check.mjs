@@ -1,7 +1,7 @@
 // Drives the real stack (web :3000, assistant :8000, api :5080) with a signed Auth.js session that
 // carries a real api token, so no interactive Entra login is needed. Not part of CI.
 // Usage: PORTAL_TOKEN=$(az account get-access-token --resource api://<api-app-id> --query accessToken -o tsv) \
-//        node scripts/live-agent-check.mjs
+//        node scripts/live-agent-check.mjs            (SCREENSHOTS=1 also refreshes docs/screenshots/*.png)
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
@@ -51,7 +51,7 @@ const tools = await page.getByTestId("tools").last().innerText();
 console.log("tools:\n" + tools);
 console.log("card:", await page.getByTestId("confirm-card").innerText());
 await page.getByTestId("usage").last().waitFor({ timeout: 120_000 });
-await page.screenshot({ path: "docs/screenshots/assistant-confirm.png" });
+if (process.env.SCREENSHOTS) await page.screenshot({ path: "docs/screenshots/assistant-confirm.png" });
 
 await page.getByRole("button", { name: "Confirm and send" }).click();
 await page.getByText(/Done\./).waitFor({ timeout: 30_000 });
@@ -61,7 +61,7 @@ await page.goto("/claims");
 const after = await page.getByTestId("claim-row").count();
 const row = page.getByTestId("claim-row").filter({ hasText: "ater heater" }).first();
 console.log("claims after", after, "| new row:", (await row.innerText()).replace(/\s+/g, " "));
-await page.screenshot({ path: "docs/screenshots/claims-after-confirm.png" });
+if (process.env.SCREENSHOTS) await page.screenshot({ path: "docs/screenshots/claims-after-confirm.png" });
 await browser.close();
 if (after !== before + 1) throw new Error(`expected ${before + 1} claims, saw ${after}`);
 console.log("OK");
