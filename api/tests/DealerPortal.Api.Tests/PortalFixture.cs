@@ -29,8 +29,6 @@ public sealed class PortalFixture : IAsyncLifetime
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
             b.UseSetting("ConnectionStrings:Portal", _postgres.GetConnectionString());
-            b.UseSetting("Database:MigrateOnStart", "true");
-            b.UseSetting("Database:SeedOnStart", "true");
             b.UseSetting("PowerBi:WorkspaceId", "ws-1");
             b.UseSetting("PowerBi:SemanticModelId", "model-1");
             b.ConfigureTestServices(services =>

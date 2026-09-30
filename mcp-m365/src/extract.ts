@@ -2,7 +2,7 @@
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 
-export const TEXT_EXTENSIONS = new Set([
+const TEXT_EXTENSIONS = new Set([
   ".md",
   ".txt",
   ".csv",
@@ -11,7 +11,7 @@ export const TEXT_EXTENSIONS = new Set([
   ".xml",
 ]);
 
-export function extension(name: string): string {
+function extension(name: string): string {
   const i = name.lastIndexOf(".");
   return i < 0 ? "" : name.slice(i).toLowerCase();
 }

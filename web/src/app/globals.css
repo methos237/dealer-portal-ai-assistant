@@ -11,7 +11,7 @@
   --border-strong: #94928f;
   --fg: light-dark(#1b1918, #ffffff);
   --fg-muted: light-dark(#595853, #dbd9d8);
-  --fg-subtle: light-dark(#777672, #a8a6a2);
+  --fg-subtle: light-dark(#6d6c68, #a8a6a2);
   --primary: #3f5efb;
   --primary-hover: light-dark(#324eda, #5b75fd);
   --primary-soft: light-dark(#d0d8ff, #192a81);
@@ -43,7 +43,6 @@
 @theme inline {
   --color-*: initial;
   --color-transparent: transparent;
-  --color-current: currentColor;
   --color-white: #ffffff;
   --color-bg: var(--bg);
   --color-surface: var(--surface);
@@ -75,7 +74,6 @@
 
   --radius-sm: 0.375rem;
   --radius-md: 1rem;
-  --radius-lg: 2rem;
   --radius-pill: 5rem;
 
   --shadow-bar: var(--shadow-bar);
@@ -233,10 +231,6 @@
     font-size: 0.875rem;
     font-weight: 500;
     color: var(--fg);
-  }
-  .hint {
-    font-size: 0.8125rem;
-    color: var(--fg-muted);
   }
   .error-text {
     display: block;

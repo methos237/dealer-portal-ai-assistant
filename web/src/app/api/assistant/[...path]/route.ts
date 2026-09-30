@@ -11,18 +11,21 @@ async function proxy(
   if (!session) return new Response("Unauthorized", { status: 401 });
   const { path } = await params;
   const url = new URL(req.url);
-  const res = await fetch(`${assistantUrl}/${path.join("/")}${url.search}`, {
-    method: req.method,
-    headers: {
-      authorization: `Bearer ${session.accessToken}`,
-      "content-type": req.headers.get("content-type") ?? "application/json",
-      accept: req.headers.get("accept") ?? "*/*",
-    },
-    body: req.method === "GET" ? undefined : await req.text(),
-    cache: "no-store",
-    // @ts-expect-error Node fetch needs duplex for streamed bodies
-    duplex: "half",
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${assistantUrl}/${path.join("/")}${url.search}`, {
+      method: req.method,
+      headers: {
+        authorization: `Bearer ${session.accessToken}`,
+        "content-type": req.headers.get("content-type") ?? "application/json",
+        accept: req.headers.get("accept") ?? "*/*",
+      },
+      body: req.method === "GET" ? undefined : await req.text(),
+      cache: "no-store",
+    });
+  } catch {
+    return new Response("The assistant is unreachable.", { status: 503 });
+  }
   return new Response(res.body, {
     status: res.status,
     headers: {

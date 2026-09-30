@@ -27,9 +27,13 @@ export async function* readSse(res: Response): AsyncGenerator<SseEvent> {
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
   const push = createSseParser();
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    yield* push(decoder.decode(value, { stream: true }));
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      yield* push(decoder.decode(value, { stream: true }));
+    }
+  } finally {
+    await reader.cancel().catch(() => {}); // consumer stopped early: release the connection
   }
 }

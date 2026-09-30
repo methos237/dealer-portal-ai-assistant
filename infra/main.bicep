@@ -90,8 +90,6 @@ module apps 'apps.bicep' = {
     openAiDeployment: openai.outputs.deploymentName
     m365TenantId: m365TenantId
     m365ClientId: m365ClientId
-    m365Site: m365Site
-    m365Library: m365Library
     powerBiWorkspaceId: powerBiWorkspaceId
     powerBiSemanticModelId: powerBiSemanticModelId
     keyVaultName: keyvault.outputs.vaultName
@@ -133,13 +131,10 @@ module budget 'budget.bicep' = {
   params: { contactEmail: budgetEmail }
 }
 
-output storageAccountName string = storage.outputs.storageAccountName
 output webUrl string = 'https://${apps.outputs.webHost}'
 output apiUrl string = 'https://${apps.outputs.apiHost}'
 output assistantUrl string = 'https://${apps.outputs.assistantHost}'
 output postgresHost string = postgres.outputs.host
 output openAiEndpoint string = openai.outputs.endpoint
 output openAiAccountName string = openai.outputs.accountName
-output keyVaultName string = keyvault.outputs.vaultName
 output functionAppName string = functions.outputs.name
-output fabricCapacityId string = fabric.outputs.capacityId

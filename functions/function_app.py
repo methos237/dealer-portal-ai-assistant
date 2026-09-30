@@ -26,7 +26,7 @@ def run_sync() -> dict[str, str]:
         return sync_library(conn, get_embedder(), graph, drive_id)
 
 
-@app.timer_trigger(schedule="0 */15 * * * *", arg_name="timer", run_on_startup=False)
+@app.timer_trigger(schedule="0 */15 * * * *", arg_name="timer")
 def ingest_m365(timer: func.TimerRequest) -> None:
     results = run_sync()
     logging.info("m365 sync: %s", dict(Counter(results.values())) or "no changes")

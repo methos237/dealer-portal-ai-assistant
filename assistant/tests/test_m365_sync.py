@@ -93,6 +93,28 @@ def test_full_walk_then_delta_edit_and_delete(conn) -> None:
     assert sync_library(conn, FakeEmbedder(), graph, DRIVE) == {"sharepoint/awning.md": "skipped"}
 
 
+def test_one_bad_file_does_not_undo_the_round_or_advance_the_delta(conn) -> None:
+    DRIVE2 = "b!drive2"  # own drive: the previous test left a delta link for DRIVE
+    graph = FakeGraph(
+        {
+            f"/drives/{DRIVE2}/root/delta": {
+                "value": [item("a1", "awning.md"), item("b1", "broken.md")],
+                "@odata.deltaLink": "https://graph/delta-1",
+            }
+        },
+        {"a1": AWNING.encode()},  # b1 download raises KeyError
+    )
+    results = sync_library(conn, FakeEmbedder(), graph, DRIVE2)
+    assert results == {"sharepoint/awning.md": "indexed", "sharepoint/broken.md": "failed"}
+    assert (
+        conn.execute(
+            "SELECT count(*) FROM rag.documents WHERE path LIKE %s", ("sharepoint/%",)
+        ).fetchone()[0]
+        >= 1
+    )
+    assert not conn.execute("SELECT 1 FROM rag.m365_sync WHERE drive_id = %s", (DRIVE2,)).fetchone()
+
+
 def test_resolve_drive_by_library_name() -> None:
     graph = FakeGraph(
         {

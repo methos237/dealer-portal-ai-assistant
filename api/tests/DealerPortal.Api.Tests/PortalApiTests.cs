@@ -66,6 +66,36 @@ public class PortalApiTests(PortalFixture fx) : IClassFixture<PortalFixture>
     }
 
     [Fact]
+    public async Task Dealer_B_cannot_see_or_write_against_dealer_A_records()
+    {
+        var a = fx.ClientAs(Dealer1User, "Dealer.User");
+        var b = fx.ClientAs(Dealer2User, "Dealer.User");
+        var aUnits = (await a.GetFromJsonAsync<List<UnitDto>>("/units", Json))!.Select(u => u.Vin).ToHashSet();
+        var aUnit = await InWarrantyUnit();
+
+        var bClaims = await b.GetFromJsonAsync<List<ClaimDto>>("/claims", Json);
+        Assert.NotEmpty(bClaims!);
+        Assert.DoesNotContain(bClaims!, c => aUnits.Contains(c.Vin));
+
+        var claim = await b.PostAsJsonAsync("/claims", new CreateClaimRequest(aUnit.Id, "Not my unit", 10m));
+        Assert.Equal(HttpStatusCode.NotFound, claim.StatusCode);
+
+        var order = await b.PostAsJsonAsync("/parts-orders", new CreatePartsOrderRequest(aUnit.Id, [new("AWN-1200", 1)]));
+        Assert.Equal(HttpStatusCode.NotFound, order.StatusCode);
+    }
+
+    [Fact]
+    public async Task Claim_amount_with_three_decimals_is_400()
+    {
+        var unit = await InWarrantyUnit();
+
+        var res = await fx.ClientAs(Dealer1User, "Dealer.User")
+            .PostAsJsonAsync("/claims", new CreateClaimRequest(unit.Id, "Sub-cent amount", 100.005m));
+
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Claim_on_in_warranty_unit_is_created_open()
     {
         var unit = await InWarrantyUnit();

@@ -34,7 +34,10 @@ def judge(
     client: anthropic.Anthropic, case: dict, answer: str, sources: list[str]
 ) -> tuple[Verdict, dict | None]:
     """Returns (verdict, usage). usage is None on a cache hit."""
-    key = hashlib.sha256(f"{case['id']}\n{answer}".encode()).hexdigest()
+    # Rubric, case and sources are part of the key: editing any of them re-grades.
+    key = hashlib.sha256(
+        "\n".join([RUBRIC, json.dumps(case, sort_keys=True), *sources, answer]).encode()
+    ).hexdigest()
     cached = CACHE / f"{key}.json"
     if cached.exists():
         return Verdict.model_validate_json(cached.read_text()), None

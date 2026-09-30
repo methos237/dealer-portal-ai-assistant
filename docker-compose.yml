@@ -45,8 +45,6 @@ services:
     env_file: .env
     environment:
       ConnectionStrings__Portal: Host=postgres;Port=5432;Database=dealer_portal;Username=postgres;Password=postgres
-      Database__MigrateOnStart: "true"
-      Database__SeedOnStart: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     depends_on:
       postgres: { condition: service_healthy }

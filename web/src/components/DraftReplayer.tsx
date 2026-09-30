@@ -18,6 +18,7 @@ export function DraftReplayer() {
       try {
         const drafts = await listDrafts();
         let sent = 0;
+        const notes: string[] = [];
         for (const d of drafts) {
           const result = await createClaim({
             unitId: d.unitId,
@@ -27,19 +28,23 @@ export function DraftReplayer() {
           if (result.ok) {
             await deleteDraft(d.id);
             sent++;
-          } else {
-            setMessage(
+          } else if (result.status && result.status < 500) {
+            // The API read it and said no: the draft cannot succeed later.
+            notes.push(
               `Draft for unit ${d.unitId} was rejected: ${result.error}`,
             );
             await deleteDraft(d.id);
+          } else {
+            notes.push(`Draft for unit ${d.unitId} kept: ${result.error}`);
           }
         }
         if (sent > 0) {
-          setMessage(
+          notes.unshift(
             `Sent ${sent} claim${sent === 1 ? "" : "s"} saved while offline.`,
           );
           router.refresh();
         }
+        if (notes.length) setMessage(notes.join(" "));
       } finally {
         running = false;
       }

@@ -5,6 +5,11 @@ set -euo pipefail
 RG=${AZURE_RESOURCE_GROUP:-rg-dealer-portal}
 KV=$(az keyvault list -g "$RG" --query '[0].name' -o tsv 2>/dev/null || true)
 OAI=$(az cognitiveservices account list -g "$RG" --query '[0].{n:name,l:location}' -o tsv 2>/dev/null || true)
+if [ "${1:-}" != "--yes" ]; then
+  az resource list -g "$RG" -o table >&2
+  read -r -p "Type '$RG' to delete everything above: " answer
+  [ "$answer" = "$RG" ] || { echo "aborted" >&2; exit 1; }
+fi
 echo "==> deleting resource group $RG" >&2
 az group delete -n "$RG" --yes
 if [ -n "$KV" ]; then

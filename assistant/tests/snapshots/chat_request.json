@@ -38,6 +38,9 @@
           "type": "document"
         },
         {
+          "cache_control": {
+            "type": "ephemeral"
+          },
           "text": "What tongue weight does the Aria 28 need?",
           "type": "text"
         }

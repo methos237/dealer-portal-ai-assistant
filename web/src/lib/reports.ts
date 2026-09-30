@@ -1,20 +1,6 @@
 /** Pure data shaping for the Reports page. Unit tested; no Next.js imports. */
 import type { ReportSummary } from "./types";
 
-export type Bar = { label: string; value: number; height: number };
-
-/** Scales values to bar heights; all-zero input gives zero-height bars. */
-export function toBars(
-  rows: { label: string; value: number }[],
-  maxHeight = 100,
-): Bar[] {
-  const max = Math.max(0, ...rows.map((r) => r.value));
-  return rows.map((r) => ({
-    ...r,
-    height: max === 0 ? 0 : Math.round((r.value / max) * maxHeight),
-  }));
-}
-
 /** "2026-04" -> "Apr 2026". */
 export function monthLabel(month: string): string {
   const [y, m] = month.split("-").map(Number);

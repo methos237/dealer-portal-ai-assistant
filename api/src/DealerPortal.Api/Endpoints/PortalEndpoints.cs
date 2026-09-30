@@ -11,9 +11,9 @@ public static class PortalEndpoints
     public const int WarrantyMonths = 36;
 
     /// <summary>Claims above this amount need Thor.Admin approval.</summary>
-    public static readonly decimal ApprovalThreshold = 5_000.00m;
+    public const decimal ApprovalThreshold = 5_000.00m;
 
-    public static IEndpointRouteBuilder MapPortal(this IEndpointRouteBuilder app)
+    public static void MapPortal(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("").RequireAuthorization(Policies.DealerUser);
 
@@ -27,7 +27,6 @@ public static class PortalEndpoints
         g.MapPost("/parts-orders", CreatePartsOrder);
         g.MapGet("/parts", ListParts);
         g.MapGet("/documents", ListDocuments);
-        return app;
     }
 
     static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
@@ -64,12 +63,18 @@ public static class PortalEndpoints
             .Select(c => new ClaimDto(c.Id, c.UnitId, c.Unit!.Vin, c.Description, c.Amount, c.Status, c.CreatedAt, c.ApprovedAt))
             .ToListAsync();
 
-    static async Task<Results<Created<ClaimDto>, NotFound, ProblemHttpResult>> CreateClaim(
+    static async Task<Results<Created<ClaimDto>, NotFound, ValidationProblem, ProblemHttpResult>> CreateClaim(
         CreateClaimRequest req, CurrentUser me, PortalDbContext db)
     {
         if (me.DealerId is not int dealerId)
         {
             return NoDealerContext();
+        }
+
+        if (decimal.Round(req.Amount, 2) != req.Amount)
+        {
+            return TypedResults.ValidationProblem(
+                new Dictionary<string, string[]> { ["Amount"] = ["Amount has at most two decimals."] });
         }
 
         var unit = await db.Units.FirstOrDefaultAsync(u => u.Id == req.UnitId);
@@ -102,13 +107,19 @@ public static class PortalEndpoints
 
     static async Task<Results<Ok<ClaimDto>, NotFound, ProblemHttpResult>> ApproveClaim(int id, PortalDbContext db)
     {
+        // One conditional UPDATE: two admins approving at once cannot both win.
+        var approved = await db.Claims
+            .Where(c => c.Id == id && c.Status == ClaimStatus.PendingApproval)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(c => c.Status, ClaimStatus.Approved)
+                .SetProperty(c => c.ApprovedAt, DateTimeOffset.UtcNow));
         var claim = await db.Claims.Include(c => c.Unit).FirstOrDefaultAsync(c => c.Id == id);
         if (claim is null)
         {
             return TypedResults.NotFound();
         }
 
-        if (claim.Status != ClaimStatus.PendingApproval)
+        if (approved == 0)
         {
             return TypedResults.Problem(
                 statusCode: StatusCodes.Status409Conflict,
@@ -116,9 +127,6 @@ public static class PortalEndpoints
                 detail: $"Claim {id} is {claim.Status}.");
         }
 
-        claim.Status = ClaimStatus.Approved;
-        claim.ApprovedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync();
         return TypedResults.Ok(ToDto(claim, claim.Unit!.Vin));
     }
 
@@ -135,6 +143,11 @@ public static class PortalEndpoints
         if (me.DealerId is not int dealerId)
         {
             return NoDealerContext();
+        }
+
+        if (req.Lines.Any(l => l is null))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = ["Lines must not contain null."] });
         }
 
         if (req.UnitId is int unitId && !await db.Units.AnyAsync(u => u.Id == unitId))

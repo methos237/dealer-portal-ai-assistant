@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { AssistantPanel } from "@/components/AssistantPanel";
@@ -72,9 +71,9 @@ test("citations to one chunk share one footnote number and one source row", asyn
     expect(screen.getAllByTestId("citation")).toHaveLength(3),
   );
   for (const chip of screen.getAllByTestId("citation"))
-    expect(chip).toHaveTextContent("1");
+    expect(chip.textContent).toContain("1");
   expect(screen.getByTestId("sources").querySelectorAll("li")).toHaveLength(1);
-  expect(screen.getByTestId("sources")).toHaveTextContent(
+  expect(screen.getByTestId("sources").textContent).toContain(
     "Trailhead Owners Manual (2025) · Warranty",
   );
 });

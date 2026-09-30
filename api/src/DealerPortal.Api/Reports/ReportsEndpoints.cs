@@ -8,13 +8,8 @@ namespace DealerPortal.Api.Reports;
 
 public static class ReportsEndpoints
 {
-    public static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(5);
-
-    public static IEndpointRouteBuilder MapReports(this IEndpointRouteBuilder app)
-    {
+    public static void MapReports(this IEndpointRouteBuilder app) =>
         app.MapGet("/reports/summary", Summary).RequireAuthorization(Policies.DealerUser);
-        return app;
-    }
 
     static async Task<Results<Ok<ReportSummaryDto>, ProblemHttpResult>> Summary(
         CurrentUser me, PowerBiClient powerBi, IMemoryCache cache, IOptions<PowerBiOptions> options, CancellationToken ct)
@@ -28,11 +23,18 @@ public static class ReportsEndpoints
         }
 
         // One cache entry per dealer scope; Thor.Admin (null dealer) shares the unfiltered entry.
-        var summary = await cache.GetOrCreateAsync($"reports:{me.DealerId}", e =>
+        try
         {
-            e.AbsoluteExpirationRelativeToNow = CacheFor;
-            return powerBi.SummaryAsync(me.DealerId, ct);
-        });
-        return TypedResults.Ok(summary!);
+            var summary = await cache.GetOrCreateAsync($"reports:{me.DealerId}", e =>
+            {
+                e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+                return powerBi.SummaryAsync(me.DealerId, ct);
+            });
+            return TypedResults.Ok(summary!);
+        }
+        catch (Exception e) when (e is HttpRequestException or Microsoft.Identity.Client.MsalException)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway, title: "Power BI unavailable", detail: e.Message);
+        }
     }
 }

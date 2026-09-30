@@ -158,11 +158,12 @@ public class McpContractTests(PortalFixture fx) : IClassFixture<PortalFixture>
         var rendered = new JsonArray([.. tools]).ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n";
 
         var path = FindRepoFile(Path.Combine("assistant", "evals", "fixtures", "tools.json"));
-        if (Environment.GetEnvironmentVariable("UPDATE_SNAPSHOTS") is not null || !File.Exists(path))
+        if (Environment.GetEnvironmentVariable("UPDATE_SNAPSHOTS") is not null)
         {
             await File.WriteAllTextAsync(path, rendered);
         }
 
+        Assert.True(File.Exists(path), $"{path} is missing; run with UPDATE_SNAPSHOTS=1 to create it");
         Assert.Equal(await File.ReadAllTextAsync(path), rendered);
     }
 

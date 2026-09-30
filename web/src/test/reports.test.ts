@@ -1,23 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { fillMonths, monthLabel, toBars } from "@/lib/reports";
-
-describe("toBars", () => {
-  test("scales to the largest value", () => {
-    expect(
-      toBars([
-        { label: "a", value: 2 },
-        { label: "b", value: 4 },
-      ]),
-    ).toEqual([
-      { label: "a", value: 2, height: 50 },
-      { label: "b", value: 4, height: 100 },
-    ]);
-  });
-
-  test("all-zero rows get zero height", () => {
-    expect(toBars([{ label: "a", value: 0 }])[0].height).toBe(0);
-  });
-});
+import { expect, test } from "vitest";
+import { fillMonths, monthLabel } from "@/lib/reports";
 
 test("monthLabel", () => {
   expect(monthLabel("2026-04")).toBe("Apr 2026");

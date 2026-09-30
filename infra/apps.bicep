@@ -10,8 +10,6 @@ param openAiEndpoint string
 param openAiDeployment string
 param m365TenantId string
 param m365ClientId string
-param m365Site string
-param m365Library string
 @description('Fabric semantic model the api reports from (scripts/fabric-up.sh); empty turns /reports/summary off.')
 param powerBiWorkspaceId string = ''
 param powerBiSemanticModelId string = ''
@@ -56,8 +54,6 @@ var settings = {
     WEBSITES_PORT: '5080'
     ASPNETCORE_ENVIRONMENT: 'Production'
     ConnectionStrings__Portal: '@${kv}postgres-connection-api)'
-    Database__MigrateOnStart: 'true'
-    Database__SeedOnStart: 'true'
     AzureAd__TenantId: entraTenantId
     AzureAd__ClientId: apiClientId
     // Power BI REST as the dealer-portal-m365 app; ids come from GitHub variables after scripts/fabric-up.sh
@@ -77,11 +73,6 @@ var settings = {
     AZURE_OPENAI_ENDPOINT: openAiEndpoint
     AZURE_OPENAI_API_KEY: '@${kv}openai-api-key)'
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT: openAiDeployment
-    M365_TENANT_ID: m365TenantId
-    M365_CLIENT_ID: m365ClientId
-    M365_CLIENT_SECRET: '@${kv}m365-client-secret)'
-    M365_SITE: m365Site
-    M365_LIBRARY: m365Library
   })
 }
 

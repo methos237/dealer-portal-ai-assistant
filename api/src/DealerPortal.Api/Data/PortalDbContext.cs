@@ -13,6 +13,10 @@ public class PortalDbContext(DbContextOptions<PortalDbContext> options, CurrentU
     public DbSet<PartsOrder> PartsOrders => Set<PartsOrder>();
     public DbSet<Document> Documents => Set<Document>();
 
+    // Every decimal in the model is money.
+    protected override void ConfigureConventions(ModelConfigurationBuilder c) =>
+        c.Properties<decimal>().HaveColumnType("numeric(12,2)");
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema("portal");
@@ -22,21 +26,13 @@ public class PortalDbContext(DbContextOptions<PortalDbContext> options, CurrentU
         b.Entity<Unit>().HasIndex(u => u.Vin).IsUnique();
         b.Entity<Part>().HasKey(p => p.Sku);
         b.Entity<PartsOrderLine>().ToTable("parts_order_lines");
+        // Every tenant-scoped list filters on dealer_id and orders by created_at.
+        b.Entity<Claim>().HasIndex(c => new { c.DealerId, c.CreatedAt });
+        b.Entity<PartsOrder>().HasIndex(o => new { o.DealerId, o.CreatedAt });
 
         b.Entity<Claim>().Property(c => c.Status).HasConversion<string>();
         b.Entity<PartsOrder>().Property(o => o.Status).HasConversion<string>();
         b.Entity<Document>().Property(d => d.Kind).HasConversion<string>();
-
-        foreach (var money in new[]
-        {
-            b.Entity<Claim>().Property(c => c.Amount),
-            b.Entity<Part>().Property(p => p.UnitPrice),
-            b.Entity<PartsOrder>().Property(o => o.Total),
-            b.Entity<PartsOrderLine>().Property(l => l.UnitPrice),
-        })
-        {
-            money.HasColumnType("numeric(12,2)");
-        }
 
         // Tenancy: Dealer.* roles see their own dealer only; Thor.Admin (DealerId null) sees all.
         b.Entity<Unit>().HasQueryFilter(u => currentUser.IsThorAdmin || u.DealerId == currentUser.DealerId);

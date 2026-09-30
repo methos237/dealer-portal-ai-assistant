@@ -84,6 +84,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic", extra = ["mcp"] },
+    { name = "azure-identity" },
     { name = "azure-monitor-opentelemetry-exporter" },
     { name = "fastapi", extra = ["standard"] },
     { name = "fastembed" },
@@ -111,6 +112,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", extras = ["mcp"], specifier = ">=1.8.0" },
+    { name = "azure-identity", specifier = ">=1.25.3" },
     { name = "azure-monitor-opentelemetry-exporter", specifier = ">=1.0.0b57" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.141.1" },
     { name = "fastembed", specifier = ">=0.8.1" },

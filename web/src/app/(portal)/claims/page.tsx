@@ -15,8 +15,7 @@ const filters: { label: string; status?: ClaimStatus }[] = [
   { label: "Approved", status: "Approved" },
   { label: "Rejected", status: "Rejected" },
 ];
-const money = (v: number) =>
-  v.toLocaleString("en-US", { style: "currency", currency: "USD" });
+import { money } from "@/lib/format";
 
 export default async function ClaimsPage({
   searchParams,

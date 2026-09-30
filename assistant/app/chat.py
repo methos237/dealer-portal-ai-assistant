@@ -1,5 +1,6 @@
 """POST /chat: retrieval + portal tools, cited, streamed over SSE."""
 
+import functools
 import json
 import os
 import uuid
@@ -40,7 +41,9 @@ def sse(event: str, data: Any) -> str:
 
 def conversation_tokens(conn: psycopg.Connection, conversation_id: uuid.UUID) -> int:
     row = conn.execute(
-        "SELECT coalesce(sum((usage->>'input_tokens')::int + (usage->>'output_tokens')::int), 0)"
+        "SELECT coalesce(sum((usage->>'input_tokens')::int + (usage->>'output_tokens')::int"
+        " + coalesce((usage->>'cache_read_input_tokens')::int, 0)"
+        " + coalesce((usage->>'cache_creation_input_tokens')::int, 0)), 0)"
         " FROM rag.messages WHERE conversation_id = %s AND usage IS NOT NULL",
         (conversation_id,),
     ).fetchone()
@@ -62,8 +65,9 @@ def history_for(conn: psycopg.Connection, conversation_id: uuid.UUID) -> list[di
     ]
 
 
+@functools.cache
 def get_client() -> anthropic.AsyncAnthropic:
-    return anthropic.AsyncAnthropic()
+    return anthropic.AsyncAnthropic()  # one connection pool per process
 
 
 def get_conn() -> Iterator[psycopg.Connection]:
@@ -71,14 +75,7 @@ def get_conn() -> Iterator[psycopg.Connection]:
         yield conn
 
 
-_embedder: Embedder | None = None
-
-
-def embedder() -> Embedder:
-    global _embedder
-    if _embedder is None:
-        _embedder = get_embedder()
-    return _embedder
+embedder = functools.cache(get_embedder)
 
 
 def tool_sources(user: User) -> list[str]:
@@ -101,8 +98,12 @@ async def tools_for(user: User):
         yield tools
 
 
-def get_tools_provider():
-    return tools_for
+def owned(conn: psycopg.Connection, conversation_id: uuid.UUID, user: User) -> None:
+    owner = conn.execute(
+        "SELECT user_oid FROM rag.conversations WHERE id = %s", (conversation_id,)
+    ).fetchone()
+    if not owner or str(owner[0]) != user.oid:
+        raise HTTPException(404, "Conversation not found")
 
 
 @router.post("/chat")
@@ -112,14 +113,9 @@ async def chat(
     conn: psycopg.Connection = Depends(get_conn),
     client: anthropic.AsyncAnthropic = Depends(get_client),
     emb: Embedder = Depends(embedder),
-    tools_provider=Depends(get_tools_provider),
 ) -> StreamingResponse:
     if body.conversation_id:
-        owner = conn.execute(
-            "SELECT user_oid FROM rag.conversations WHERE id = %s", (body.conversation_id,)
-        ).fetchone()
-        if not owner or str(owner[0]) != user.oid:
-            raise HTTPException(404, "Conversation not found")
+        owned(conn, body.conversation_id, user)
         conversation_id = body.conversation_id
         if conversation_tokens(conn, conversation_id) > MAX_TOKENS_PER_CONVERSATION:
             raise HTTPException(
@@ -134,9 +130,12 @@ async def chat(
         conn.commit()
 
     history = history_for(conn, conversation_id)
+    # Follow-ups ("and the fabric?") retrieve on the previous question too.
+    previous = [m["content"] for m in history if m["role"] == "user"][-1:]
+    query = " ".join([*previous, body.message])
     with tracer.start_as_current_span("retrieval") as span:
         hits = await anyio.to_thread.run_sync(
-            lambda: retrieve(conn, emb, body.message, dealer_id=user.dealer_id)
+            lambda: retrieve(conn, emb, query, dealer_id=user.dealer_id)
         )
         span.set_attribute("retrieval.hits", len(hits))
     request = build_request(history, body.message, hits)
@@ -149,7 +148,7 @@ async def chat(
             "conversation", {"id": str(conversation_id), "sources": [source_dict(h) for h in hits]}
         )
         try:
-            async with tools_provider(user) as tools:
+            async with tools_for(user) as tools:
                 async for event, data in run_turn(client, request, tools, hits):
                     if event != "done":
                         yield sse(event, data)
@@ -177,11 +176,8 @@ async def chat(
                                 json.dumps({**data.usage, "model": MODEL}),
                             ),
                         )
-                    yield sse("done", {"stop_reason": data.stop_reason, "usage": data.usage})
-        except anthropic.APIStatusError as e:
-            yield sse("error", {"status": e.status_code, "message": e.message})
-        except anthropic.APIConnectionError:
-            yield sse("error", {"status": 503, "message": "Could not reach the model API."})
+                    if data.stop_reason != "error":
+                        yield sse("done", {"stop_reason": data.stop_reason, "usage": data.usage})
         except Exception as e:  # tool transport failures (api down, token rejected by /mcp)
             log.exception("chat turn failed")
             yield sse("error", {"status": 502, "message": f"Assistant error: {type(e).__name__}"})
@@ -209,11 +205,7 @@ def get_conversation(
     user: User = Depends(current_user),
     conn: psycopg.Connection = Depends(get_conn),
 ) -> dict:
-    owner = conn.execute(
-        "SELECT user_oid FROM rag.conversations WHERE id = %s", (conversation_id,)
-    ).fetchone()
-    if not owner or str(owner[0]) != user.oid:
-        raise HTTPException(404, "Conversation not found")
+    owned(conn, conversation_id, user)
     rows = conn.execute(
         "SELECT role, content, sources, usage, created_at FROM rag.messages"
         " WHERE conversation_id = %s ORDER BY id",
@@ -235,11 +227,7 @@ def conversation_cost(
     conn: psycopg.Connection = Depends(get_conn),
 ) -> dict:
     """Token totals and USD cost of every assistant turn, from the pinned price table."""
-    owner = conn.execute(
-        "SELECT user_oid FROM rag.conversations WHERE id = %s", (conversation_id,)
-    ).fetchone()
-    if not owner or str(owner[0]) != user.oid:
-        raise HTTPException(404, "Conversation not found")
+    owned(conn, conversation_id, user)
     usages = [
         u
         for (u,) in conn.execute(

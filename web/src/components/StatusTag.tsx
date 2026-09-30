@@ -6,12 +6,6 @@ const claimTone: Record<Claim["status"], string> = {
   Approved: "tag-success",
   Rejected: "tag-error",
 };
-const claimLabel: Record<Claim["status"], string> = {
-  Open: "Open",
-  PendingApproval: "Pending approval",
-  Approved: "Approved",
-  Rejected: "Rejected",
-};
 const orderTone: Record<PartsOrder["status"], string> = {
   Submitted: "tag-primary",
   Shipped: "tag-success",
@@ -20,7 +14,9 @@ const orderTone: Record<PartsOrder["status"], string> = {
 
 export function ClaimStatusTag({ status }: { status: Claim["status"] }) {
   return (
-    <span className={`tag ${claimTone[status]}`}>{claimLabel[status]}</span>
+    <span className={`tag ${claimTone[status]}`}>
+      {status === "PendingApproval" ? "Pending approval" : status}
+    </span>
   );
 }
 

@@ -53,10 +53,9 @@ def run_case(
     embedder: Embedder,
     question: str,
     tools: list,
-    history: list[dict] | None = None,
 ) -> tuple[TurnResult, list[Hit]]:
     hits = retrieve(conn, embedder, question, dealer_id=None)
-    request = build_request(history or [], question, hits)
+    request = build_request([], question, hits)
 
     async def go() -> TurnResult:
         result = None

@@ -16,7 +16,7 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks().AddDbContextCheck<PortalDbContext>();
 builder.Services.AddProblemDetails();
 builder.Services.AddValidation();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -74,15 +74,11 @@ builder.Services.AddMcpServer()
 
 var app = builder.Build();
 
-if (app.Configuration.GetValue<bool>("Database:MigrateOnStart"))
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<PortalDbContext>();
     await db.Database.MigrateAsync();
-    if (app.Configuration.GetValue<bool>("Database:SeedOnStart"))
-    {
-        await SeedData.ApplyIfEmptyAsync(db);
-    }
+    await SeedData.ApplyIfEmptyAsync(db);
 }
 
 app.UseStatusCodePages();   // 401/403 from the auth middleware become RFC 9457 problem details

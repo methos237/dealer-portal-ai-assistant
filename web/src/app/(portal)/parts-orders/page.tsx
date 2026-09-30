@@ -4,8 +4,7 @@ import { listPartsOrders } from "@/lib/api";
 
 export const metadata = { title: "Parts orders" };
 
-const money = (v: number) =>
-  v.toLocaleString("en-US", { style: "currency", currency: "USD" });
+import { money } from "@/lib/format";
 
 export default async function PartsOrdersPage() {
   const orders = await listPartsOrders();
@@ -46,8 +45,8 @@ export default async function PartsOrdersPage() {
                   <td className="num text-fg-muted">{o.id}</td>
                   <td>
                     <ul className="flex flex-wrap gap-1.5">
-                      {o.lines.map((l) => (
-                        <li key={l.sku} className="tag font-mono">
+                      {o.lines.map((l, i) => (
+                        <li key={`${l.sku}-${i}`} className="tag font-mono">
                           {l.quantity} × {l.sku}
                         </li>
                       ))}

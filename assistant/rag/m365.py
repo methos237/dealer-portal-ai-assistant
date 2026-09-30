@@ -6,6 +6,7 @@ ignored (same loaders as rag.ingest); deleted or renamed-away items lose their c
 """
 
 import hashlib
+import logging
 import os
 import tempfile
 from collections.abc import Callable, Iterator
@@ -15,12 +16,13 @@ import httpx2 as httpx
 import psycopg
 from pgvector.psycopg import register_vector
 
+from rag.chunking import CHUNKER_VERSION
 from rag.embedder import Embedder
-from rag.ingest import default_kind, load, upsert_document
+from rag.ingest import INGESTED_SUFFIXES, default_kind, load, upsert_document
 
 GRAPH = "https://graph.microsoft.com/v1.0"
-INGESTED_SUFFIXES = {".md", ".pdf"}
 PATH_PREFIX = "sharepoint"
+log = logging.getLogger("assistant.m365")
 
 
 class Graph:
@@ -85,15 +87,24 @@ def sync_library(
     ).fetchone()
     results: dict[str, str] = {}
     delta_link = None
+    failed = False
     for page in graph.pages(row[0] if row else f"/drives/{drive_id}/root/delta"):
         for item in page["value"]:
             external_id = f"{drive_id}:{item['id']}"
-            if "deleted" in item:
-                results[external_id] = _delete(conn, external_id)
-            elif "file" in item:
-                results[document_path(item)] = _upsert(conn, embedder, graph, drive_id, item)
+            key = external_id if "deleted" in item else document_path(item)
+            try:
+                if "deleted" in item:
+                    results[key] = _delete(conn, external_id)
+                elif "file" in item:
+                    results[key] = _upsert(conn, embedder, graph, drive_id, item)
+                conn.commit()  # each document lands on its own; one bad file cannot undo the rest
+            except Exception:
+                conn.rollback()
+                failed = True
+                results[key] = "failed"
+                log.exception("m365 sync failed for %s", key)
         delta_link = page.get("@odata.deltaLink", delta_link)
-    if delta_link:
+    if delta_link and not failed:  # a failed item stays in the next round
         conn.execute(
             "INSERT INTO rag.m365_sync (drive_id, delta_link) VALUES (%s, %s)"
             " ON CONFLICT (drive_id) DO UPDATE SET delta_link = excluded.delta_link,"
@@ -119,7 +130,7 @@ def _upsert(
     if suffix not in INGESTED_SUFFIXES:
         return _delete(conn, external_id)  # also drops a doc renamed to an unsupported type
     data = graph.download(drive_id, item["id"])
-    content_hash = hashlib.sha256(data).hexdigest()
+    content_hash = hashlib.sha256(data + CHUNKER_VERSION).hexdigest()
     existing = conn.execute(
         "SELECT id, content_hash, path FROM rag.documents WHERE external_id = %s", (external_id,)
     ).fetchone()

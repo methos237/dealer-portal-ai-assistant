@@ -28,7 +28,7 @@ def parse_sse(body: str) -> list[tuple[str, dict]]:
 
 
 @pytest.fixture
-def client(conn, tmp_path: Path):
+def client(conn, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     write_docs(tmp_path)
     ingest_dir(conn, FakeEmbedder(), tmp_path)
     conn.commit()
@@ -56,7 +56,7 @@ def client(conn, tmp_path: Path):
     app.dependency_overrides[chat.get_conn] = lambda: conn
     app.dependency_overrides[chat.get_client] = lambda: fake
     app.dependency_overrides[chat.embedder] = lambda: FakeEmbedder()
-    app.dependency_overrides[chat.get_tools_provider] = lambda: no_tools
+    monkeypatch.setattr(chat, "tools_for", no_tools)
     yield TestClient(app), fake
     app.dependency_overrides.clear()
     conn.execute("DELETE FROM rag.conversations WHERE user_oid = %s", (OID,))
@@ -80,7 +80,11 @@ def test_chat_streams_events_and_persists_both_turns(client) -> None:
     # documents went to the model as citation-enabled document blocks
     sent = fake.requests[0]["messages"][-1]["content"]
     assert sent[0]["type"] == "document" and sent[0]["citations"] == {"enabled": True}
-    assert sent[-1] == {"type": "text", "text": "When must the awning be retracted?"}
+    assert sent[-1] == {
+        "type": "text",
+        "text": "When must the awning be retracted?",
+        "cache_control": {"type": "ephemeral"},
+    }
 
     # second turn replays history as plain text
     res2 = http.post(

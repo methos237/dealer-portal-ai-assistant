@@ -14,4 +14,3 @@ resource capacity 'Microsoft.Fabric/capacities@2023-11-01' = {
 }
 
 output capacityId string = capacity.id
-output capacityName string = capacity.name

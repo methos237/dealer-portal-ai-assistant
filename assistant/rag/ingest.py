@@ -14,7 +14,7 @@ from pgvector import Vector
 from pgvector.psycopg import register_vector
 from pypdf import PdfReader
 
-from rag.chunking import Chunk, chunk_markdown, chunk_pdf_pages
+from rag.chunking import CHUNKER_VERSION, Chunk, chunk_markdown, chunk_pdf_pages
 from rag.embedder import Embedder, get_embedder
 from rag.settings import database_url
 
@@ -35,40 +35,28 @@ def load(path: Path) -> tuple[str, list[Chunk]]:
     return title, chunk_markdown(text, title)
 
 
-def _portal_document(conn: psycopg.Connection, filename: str) -> dict:
-    """Mirror kind/model/id from portal.documents when that table exists (not in unit tests)."""
-    try:
-        with conn.transaction():
-            row = conn.execute(
-                "SELECT id, kind, model FROM portal.documents WHERE path = %s", (filename,)
-            ).fetchone()
-    except psycopg.errors.UndefinedTable:
-        return {}
-    return {"portal_document_id": row[0], "kind": row[1], "model": row[2]} if row else {}
-
-
 def ingest_file(conn: psycopg.Connection, embedder: Embedder, path: Path) -> str:
     """Index one file. Returns 'skipped' when the content hash is unchanged, else 'indexed'."""
-    content_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+    content_hash = hashlib.sha256(path.read_bytes() + CHUNKER_VERSION).hexdigest()
     existing = conn.execute(
         "SELECT id, content_hash FROM rag.documents WHERE path = %s", (path.name,)
     ).fetchone()
     if existing and existing[1] == content_hash:
         return "skipped"
     title, chunks = load(path)
-    portal = _portal_document(conn, path.name)
     return upsert_document(
         conn,
         embedder,
         existing_id=existing[0] if existing else None,
         path=path.name,
         title=title,
-        kind=portal.get("kind") or default_kind(path.name),
+        kind=default_kind(path.name),
         chunks=chunks,
         content_hash=content_hash,
-        model=portal.get("model"),
-        portal_document_id=portal.get("portal_document_id"),
     )
+
+
+INGESTED_SUFFIXES = {".md", ".pdf"}
 
 
 def default_kind(filename: str) -> str:
@@ -85,8 +73,6 @@ def upsert_document(
     kind: str,
     chunks: list[Chunk],
     content_hash: str,
-    model: str | None = None,
-    portal_document_id: int | None = None,
     external_id: str | None = None,
 ) -> str:
     """Embed chunks and replace (existing_id) or insert the document row and its chunks."""
@@ -95,27 +81,17 @@ def upsert_document(
         if existing_id is not None:
             conn.execute("DELETE FROM rag.chunks WHERE doc_id = %s", (existing_id,))
             conn.execute(
-                "UPDATE rag.documents SET path=%s, title=%s, kind=%s, model=%s,"
-                " portal_document_id=%s, external_id=%s, content_hash=%s, indexed_at=now()"
-                " WHERE id=%s",
-                (
-                    path,
-                    title,
-                    kind,
-                    model,
-                    portal_document_id,
-                    external_id,
-                    content_hash,
-                    existing_id,
-                ),
+                "UPDATE rag.documents SET path=%s, title=%s, kind=%s, external_id=%s,"
+                " content_hash=%s, indexed_at=now() WHERE id=%s",
+                (path, title, kind, external_id, content_hash, existing_id),
             )
             doc_id = existing_id
         else:
             doc_id = conn.execute(
                 "INSERT INTO rag.documents"
-                " (path, title, kind, model, portal_document_id, external_id, content_hash)"
-                " VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
-                (path, title, kind, model, portal_document_id, external_id, content_hash),
+                " (path, title, kind, external_id, content_hash)"
+                " VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                (path, title, kind, external_id, content_hash),
             ).fetchone()[0]
         with conn.cursor() as cur:
             cur.executemany(
@@ -131,7 +107,7 @@ def upsert_document(
 
 def ingest_dir(conn: psycopg.Connection, embedder: Embedder, directory: Path) -> dict[str, str]:
     register_vector(conn)
-    files = sorted(p for p in directory.iterdir() if p.suffix.lower() in {".md", ".pdf"})
+    files = sorted(p for p in directory.iterdir() if p.suffix.lower() in INGESTED_SUFFIXES)
     return {p.name: ingest_file(conn, embedder, p) for p in files}
 
 

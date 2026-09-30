@@ -8,6 +8,8 @@ W3C trace context comes in from the web proxy and goes out to the api's /mcp on 
 import os
 
 from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
 from opentelemetry.propagate import inject
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -34,16 +36,9 @@ def configure(app) -> TracerProvider | None:
             BatchSpanProcessor(AzureMonitorTraceExporter(connection_string=app_insights))
         )
     trace.set_tracer_provider(provider)
-    instrument(app)
-    return provider
-
-
-def instrument(app) -> None:
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-    from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
-
     FastAPIInstrumentor.instrument_app(app, excluded_urls="health")
     PsycopgInstrumentor().instrument(skip_dep_check=True)
+    return provider
 
 
 async def inject_trace_context(request) -> None:
