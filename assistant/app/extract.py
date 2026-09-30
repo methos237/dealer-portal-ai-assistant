@@ -7,11 +7,11 @@ import anthropic
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from app.agent import MODEL
 from app.auth import User, current_user
+from app.chat import get_client
 
 router = APIRouter()
-
-MODEL = "claude-opus-5"
 
 
 class ClaimExtraction(BaseModel):
@@ -29,10 +29,6 @@ class ClaimExtraction(BaseModel):
 
 class ExtractRequest(BaseModel):
     text: str
-
-
-def get_client() -> anthropic.AsyncAnthropic:
-    return anthropic.AsyncAnthropic()
 
 
 @router.post("/extract/claim")

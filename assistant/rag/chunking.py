@@ -22,10 +22,6 @@ class Chunk:
     metadata: dict = field(default_factory=dict)  # title, section, page
 
 
-def approx_tokens(text: str) -> int:
-    return int(len(text.split()) * TOKENS_PER_WORD)
-
-
 def _windows(words: list[str]) -> list[list[str]]:
     if len(words) <= WINDOW_WORDS:
         return [words] if words else []

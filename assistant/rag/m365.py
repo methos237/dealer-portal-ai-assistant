@@ -16,10 +16,9 @@ import psycopg
 from pgvector.psycopg import register_vector
 
 from rag.embedder import Embedder
-from rag.ingest import default_kind, load, upsert_document
+from rag.ingest import INGESTED_SUFFIXES, default_kind, load, upsert_document
 
 GRAPH = "https://graph.microsoft.com/v1.0"
-INGESTED_SUFFIXES = {".md", ".pdf"}
 PATH_PREFIX = "sharepoint"
 
 

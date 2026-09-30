@@ -7,7 +7,7 @@ that user may call and the api re-checks every call. Write tools return drafts; 
 
 import json
 import os
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
@@ -155,9 +155,8 @@ async def mcp_tools(url: str, token: str) -> AsyncIterator[list]:
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 listed = (await session.list_tools()).tools
-                for t in listed:  # mcp 2.x names it input_schema, 1.x inputSchema
-                    field = "input_schema" if hasattr(t, "input_schema") else "inputSchema"
-                    setattr(t, field, _strict(getattr(t, field)))
+                for t in listed:
+                    t.input_schema = _strict(t.input_schema)
                 yield [async_mcp_tool(t, session, strict=True) for t in listed]
 
 
@@ -261,6 +260,3 @@ def source_dict(h: Hit) -> dict:
         "ord": h.ord,
         "metadata": h.metadata,
     }
-
-
-ToolsProvider = Callable[[str], Any]  # token -> async context manager yielding tools

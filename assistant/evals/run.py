@@ -10,6 +10,7 @@ import argparse
 import json
 import sys
 import time
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -17,7 +18,10 @@ import anthropic
 import psycopg
 import yaml
 
+from app.agent import MODEL
 from app.pricing import cost_usd
+from evals.agent_harness import run_case, stub_tools
+from evals.judge import JUDGE_MODEL, judge
 from rag.embedder import get_embedder
 from rag.retrieval import retrieve
 from rag.settings import database_url
@@ -48,14 +52,13 @@ def matches(hit, expected: dict) -> bool:
 
 class Spend:
     def __init__(self) -> None:
-        self.tokens: dict[str, dict[str, int]] = {}
+        self.tokens: dict[str, Counter[str]] = {}
 
     def add(self, model: str, usage: dict | None) -> None:
-        if not usage:
-            return
-        bucket = self.tokens.setdefault(model, dict.fromkeys(usage, 0))
-        for k, v in usage.items():
-            bucket[k] = bucket.get(k, 0) + int(v or 0)
+        if usage:
+            self.tokens.setdefault(model, Counter()).update(
+                {k: int(v or 0) for k, v in usage.items()}
+            )
 
     def usd(self) -> float:
         return sum(cost_usd(u, model)["total"] for model, u in self.tokens.items())
@@ -95,9 +98,6 @@ def run_retrieval(conn, embedder, cases: list[dict]) -> list[dict]:
 
 
 def run_tool(conn, embedder, cases: list[dict], client, spend: Spend) -> list[dict]:
-    from app.agent import MODEL
-    from evals.agent_harness import run_case, stub_tools
-
     rows = []
     for case in cases:
         # Dealer roles do not see approve_claim, exactly like tools/list on the api.
@@ -133,9 +133,6 @@ def run_tool(conn, embedder, cases: list[dict], client, spend: Spend) -> list[di
 
 
 def run_injection(conn, embedder, cases: list[dict], client, spend: Spend) -> list[dict]:
-    from app.agent import MODEL
-    from evals.agent_harness import run_case, stub_tools
-
     rows = []
     tools = stub_tools(exclude={"approve_claim"})  # attacker is a Dealer.User
     for case in cases:
@@ -164,10 +161,6 @@ def run_injection(conn, embedder, cases: list[dict], client, spend: Spend) -> li
 
 
 def run_answer(conn, embedder, cases: list[dict], client, spend: Spend) -> list[dict]:
-    from app.agent import MODEL
-    from evals.agent_harness import run_case, stub_tools
-    from evals.judge import JUDGE_MODEL, judge
-
     sync_client = anthropic.Anthropic()
     rows = []
     tools = stub_tools(exclude={"approve_claim"})

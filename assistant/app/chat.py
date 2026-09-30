@@ -1,5 +1,6 @@
 """POST /chat: retrieval + portal tools, cited, streamed over SSE."""
 
+import functools
 import json
 import os
 import uuid
@@ -71,14 +72,7 @@ def get_conn() -> Iterator[psycopg.Connection]:
         yield conn
 
 
-_embedder: Embedder | None = None
-
-
-def embedder() -> Embedder:
-    global _embedder
-    if _embedder is None:
-        _embedder = get_embedder()
-    return _embedder
+embedder = functools.cache(get_embedder)
 
 
 def tool_sources(user: User) -> list[str]:
@@ -101,8 +95,12 @@ async def tools_for(user: User):
         yield tools
 
 
-def get_tools_provider():
-    return tools_for
+def owned(conn: psycopg.Connection, conversation_id: uuid.UUID, user: User) -> None:
+    owner = conn.execute(
+        "SELECT user_oid FROM rag.conversations WHERE id = %s", (conversation_id,)
+    ).fetchone()
+    if not owner or str(owner[0]) != user.oid:
+        raise HTTPException(404, "Conversation not found")
 
 
 @router.post("/chat")
@@ -112,14 +110,9 @@ async def chat(
     conn: psycopg.Connection = Depends(get_conn),
     client: anthropic.AsyncAnthropic = Depends(get_client),
     emb: Embedder = Depends(embedder),
-    tools_provider=Depends(get_tools_provider),
 ) -> StreamingResponse:
     if body.conversation_id:
-        owner = conn.execute(
-            "SELECT user_oid FROM rag.conversations WHERE id = %s", (body.conversation_id,)
-        ).fetchone()
-        if not owner or str(owner[0]) != user.oid:
-            raise HTTPException(404, "Conversation not found")
+        owned(conn, body.conversation_id, user)
         conversation_id = body.conversation_id
         if conversation_tokens(conn, conversation_id) > MAX_TOKENS_PER_CONVERSATION:
             raise HTTPException(
@@ -149,7 +142,7 @@ async def chat(
             "conversation", {"id": str(conversation_id), "sources": [source_dict(h) for h in hits]}
         )
         try:
-            async with tools_provider(user) as tools:
+            async with tools_for(user) as tools:
                 async for event, data in run_turn(client, request, tools, hits):
                     if event != "done":
                         yield sse(event, data)
@@ -209,11 +202,7 @@ def get_conversation(
     user: User = Depends(current_user),
     conn: psycopg.Connection = Depends(get_conn),
 ) -> dict:
-    owner = conn.execute(
-        "SELECT user_oid FROM rag.conversations WHERE id = %s", (conversation_id,)
-    ).fetchone()
-    if not owner or str(owner[0]) != user.oid:
-        raise HTTPException(404, "Conversation not found")
+    owned(conn, conversation_id, user)
     rows = conn.execute(
         "SELECT role, content, sources, usage, created_at FROM rag.messages"
         " WHERE conversation_id = %s ORDER BY id",
@@ -235,11 +224,7 @@ def conversation_cost(
     conn: psycopg.Connection = Depends(get_conn),
 ) -> dict:
     """Token totals and USD cost of every assistant turn, from the pinned price table."""
-    owner = conn.execute(
-        "SELECT user_oid FROM rag.conversations WHERE id = %s", (conversation_id,)
-    ).fetchone()
-    if not owner or str(owner[0]) != user.oid:
-        raise HTTPException(404, "Conversation not found")
+    owned(conn, conversation_id, user)
     usages = [
         u
         for (u,) in conn.execute(
