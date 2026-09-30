@@ -7,6 +7,10 @@ on:
     types: [completed]
     branches: [master]
   workflow_dispatch:
+    inputs:
+      imageTag:
+        description: Image tag to deploy; images.yml pushes :latest and :<sha> only for commits that touch a component
+        default: latest
 
 concurrency:
   group: deploy
@@ -44,7 +48,7 @@ jobs:
           az group create -n "$RG" -l eastus2 -o none
           az deployment group create -g "$RG" -n dealer-portal --template-file infra/main.bicep \
             --parameters infra/dev.parameters.json \
-            --parameters imageTag="${{ github.event.workflow_run.head_sha || github.sha }}" \
+            --parameters imageTag="${{ github.event.workflow_run.head_sha || inputs.imageTag }}" \
               webClientId="${{ vars.WEB_CLIENT_ID }}" entraApiScope="${{ vars.ENTRA_API_SCOPE }}" \
               m365Site="${{ vars.M365_SITE }}" budgetEmail="${{ vars.BUDGET_EMAIL }}" \
               powerBiWorkspaceId="${{ vars.FABRIC_WORKSPACE_ID }}" powerBiSemanticModelId="${{ vars.FABRIC_SEMANTIC_MODEL_ID }}" \

@@ -73,15 +73,17 @@ log "function code"
 az functionapp deployment source config-zip -g "$RG" -n "$FUNC" --src functions.zip -o none
 rm -f functions.zip
 
-log "restarting apps so Key Vault references resolve"
+# A settings write, not a restart: App Service caches a failed Key Vault reference and only
+# re-resolves on a configuration change (same as deploy.yml).
+log "re-applying settings so Key Vault references resolve"
 for app in app-dealer-portal-api app-dealer-portal-assistant app-dealer-portal-web; do
-  az webapp restart -g "$RG" -n "$app" -o none
+  az webapp config appsettings set -g "$RG" -n "$app" --settings DEPLOY_STAMP="$(date +%s)" -o none
 done
 for url in "$API_URL" "$ASSISTANT_URL" "$WEB_URL"; do
   for _ in $(seq 1 30); do
     code=$(curl -s -o /dev/null -w '%{http_code}' "$url/health" || true); [ "$code" = 200 ] && break; sleep 10
   done
-  echo "$url/health -> $code"
+  echo "$url/health -> $code"; [ "$code" = 200 ]
 done
 
 cat <<OUT
