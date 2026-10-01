@@ -5,7 +5,6 @@ on:
     branches: [master]
     paths: ["assistant/**", "functions/**", ".github/workflows/assistant.yml"]
   pull_request:
-    paths: ["assistant/**", "functions/**", ".github/workflows/assistant.yml"]
 
 concurrency:
   group: assistant-${{ github.ref }}
@@ -13,6 +12,7 @@ concurrency:
 
 jobs:
   check:
+    name: assistant
     runs-on: ubuntu-latest
     env:
       FASTEMBED_CACHE_PATH: /home/runner/.cache/fastembed

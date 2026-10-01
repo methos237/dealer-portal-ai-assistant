@@ -5,7 +5,6 @@ on:
     branches: [master]
     paths: ["infra/**", ".github/workflows/infra.yml"]
   pull_request:
-    paths: ["infra/**", ".github/workflows/infra.yml"]
 
 concurrency:
   group: infra-${{ github.ref }}
@@ -17,6 +16,7 @@ permissions:
 
 jobs:
   check:
+    name: infra
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

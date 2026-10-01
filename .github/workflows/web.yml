@@ -5,7 +5,6 @@ on:
     branches: [master]
     paths: ["web/**", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", ".github/workflows/web.yml"]
 
 concurrency:
   group: web-${{ github.ref }}
@@ -13,6 +12,7 @@ concurrency:
 
 jobs:
   check:
+    name: web
     runs-on: ubuntu-latest
     defaults:
       run:

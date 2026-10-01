@@ -3,7 +3,6 @@ name: eval
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
-    paths: ["assistant/**", ".github/workflows/eval.yml"]
   workflow_dispatch:
 
 concurrency:

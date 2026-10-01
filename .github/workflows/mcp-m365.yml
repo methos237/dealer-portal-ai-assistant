@@ -5,7 +5,6 @@ on:
     branches: [master]
     paths: ["mcp-m365/**", ".github/workflows/mcp-m365.yml"]
   pull_request:
-    paths: ["mcp-m365/**", ".github/workflows/mcp-m365.yml"]
 
 concurrency:
   group: mcp-m365-${{ github.ref }}
@@ -13,6 +12,7 @@ concurrency:
 
 jobs:
   check:
+    name: mcp-m365
     runs-on: ubuntu-latest
     defaults:
       run:
