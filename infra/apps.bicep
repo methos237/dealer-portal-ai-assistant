@@ -97,6 +97,8 @@ resource site 'Microsoft.Web/sites@2024-04-01' = [for app in ['web', 'api', 'ass
 }]
 
 output principalIds string[] = [for i in range(0, 3): site[i].identity.principalId]
+// All three share the plan, so the lists are identical; union() in main.bicep dedupes.
+output outboundIps string[] = split(site[0].properties.possibleOutboundIpAddresses, ',')
 output webHost string = hosts.web
 output apiHost string = hosts.api
 output assistantHost string = hosts.assistant

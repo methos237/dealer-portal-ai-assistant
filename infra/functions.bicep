@@ -78,3 +78,4 @@ resource storageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 
 output principalId string = func.identity.principalId
 output name string = func.name
+output outboundIps string[] = split(func.properties.possibleOutboundIpAddresses, ',')

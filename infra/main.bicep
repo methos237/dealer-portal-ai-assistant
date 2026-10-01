@@ -120,6 +120,14 @@ module keyvaultAccess 'keyvault-access.bicep' = {
   }
 }
 
+module postgresFirewall 'postgres-firewall.bicep' = {
+  name: 'postgres-firewall'
+  params: {
+    serverName: postgres.outputs.serverName
+    allowedIps: union(apps.outputs.outboundIps, functions.outputs.outboundIps)
+  }
+}
+
 module fabric 'fabric.bicep' = {
   name: 'fabric'
   // this free-trial subscription has Fabric quota (4 CU) in centralus only, none in eastus2
