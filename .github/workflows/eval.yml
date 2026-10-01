@@ -4,9 +4,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
     paths: ["assistant/**", ".github/workflows/eval.yml"]
-  push:
-    branches: [master]
-    paths: ["assistant/**", ".github/workflows/eval.yml"]
   workflow_dispatch:
 
 concurrency:
@@ -54,10 +51,11 @@ jobs:
           name: eval-results
           path: assistant/evals/out/*.json
 
-  # Paid: LLM-graded suites, about 1.50 USD when the judge cache misses. Runs on master, on dispatch, and on
-  # pull requests labeled `eval`; the retrieval job alone gates ordinary pull requests.
+  # Paid: LLM-graded suites, about 1.50 USD per run (the chat model, not the judge, is the cost; judge
+  # verdicts are keyed on the live answer text so the cache rarely hits across runs). Runs only on dispatch
+  # and on pull requests labeled `eval`; the retrieval job alone gates ordinary pull requests.
   full:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'eval')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'eval')
     needs: retrieval
     runs-on: ubuntu-latest
     services:
