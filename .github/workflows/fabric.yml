@@ -1,0 +1,42 @@
+name: fabric
+
+# The F2 capacity costs about 0.36 USD per hour while running and has no auto-pause. Nightly suspend
+# as a backstop; resume by hand before a demo (then run the copy pipeline once, scripts/fabric-up.sh).
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        options: [suspend, resume]
+        default: suspend
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  capacity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          allow-no-subscriptions: true
+      - name: ${{ inputs.action || 'suspend' }}
+        env:
+          ACTION: ${{ inputs.action || 'suspend' }}
+          RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          ID=$(az resource list -g "$RG" --resource-type Microsoft.Fabric/capacities --query '[0].id' -o tsv 2>/dev/null || true)
+          [ -n "$ID" ] || { echo "no Fabric capacity in $RG (Azure is down), nothing to do"; exit 0; }
+          STATE=$(az resource show --ids "$ID" --query properties.state -o tsv)
+          echo "capacity state: $STATE"
+          case "$ACTION:$STATE" in
+            suspend:Active|resume:Paused|resume:Suspended)
+              az resource invoke-action --action "$ACTION" --ids "$ID" -o none && echo "$ACTION requested" ;;
+            *) echo "nothing to do" ;;
+          esac
