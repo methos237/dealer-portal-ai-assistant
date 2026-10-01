@@ -4,6 +4,8 @@
 param location string = resourceGroup().location
 @description('Region for Postgres and the App Service plan. This free-trial subscription has no capacity for either in eastus2; centralus accepts B1 and B1ms.')
 param computeLocation string = 'centralus'
+@description('Postgres region. centralus refused Standard_B1ms with CapacityNotAvailable three times (2026-09-30, 2026-10-01); northcentralus lists it.')
+param postgresLocation string = 'northcentralus'
 @description('Container registry namespace the App Service images are pulled from.')
 param imageRegistry string = 'ghcr.io/methos237'
 param imageTag string = 'latest'
@@ -48,7 +50,7 @@ module monitoring 'monitoring.bicep' = {
 
 module postgres 'postgres.bicep' = {
   name: 'postgres'
-  params: { location: computeLocation, adminPassword: postgresAdminPassword }
+  params: { location: postgresLocation, adminPassword: postgresAdminPassword }
 }
 
 module openai 'openai.bicep' = {
