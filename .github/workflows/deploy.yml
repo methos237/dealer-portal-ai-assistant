@@ -36,8 +36,8 @@ jobs:
       openAiEndpoint: ${{ steps.deploy.outputs.openAiEndpoint }}
       functionAppName: ${{ steps.deploy.outputs.functionAppName }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: azure/login@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -67,13 +67,13 @@ jobs:
       run:
         working-directory: assistant
     steps:
-      - uses: actions/checkout@v7
-      - uses: azure/login@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
       - name: Open the firewall for this runner
         run: |
           IP=$(curl -s https://api.ipify.org)
@@ -101,13 +101,13 @@ jobs:
     needs: infra
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: azure/login@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
       - name: Package (assistant's rag package vendored next to function_app.py)
         working-directory: functions
         run: |
@@ -120,7 +120,7 @@ jobs:
     needs: [infra, database]
     runs-on: ubuntu-latest
     steps:
-      - uses: azure/login@v3
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
