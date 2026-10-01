@@ -94,7 +94,7 @@ Cache verification: the second turn of a conversation reports `cache_read_input_
 | Suite | Grader | Threshold | Runs |
 |---|---|---|---|
 | retrieval (30 cases) | programmatic: recall@5 and MRR against the expected document and heading | recall@5 ≥ 0.90 | every PR touching `assistant/`, local embedder, no secrets |
-| answer, tool, injection | LLM judge and programmatic checks | faithfulness ≥ 4.2, tool exact match ≥ 0.90, injection 100% | `master`, manual dispatch, PRs labeled `eval` |
+| answer, tool, injection | LLM judge and programmatic checks | faithfulness ≥ 4.2, tool exact match ≥ 0.90, injection 100% | manual dispatch, PRs labeled `eval` |
 
 Current retrieval result on the fixtures:
 
@@ -102,7 +102,7 @@ Current retrieval result on the fixtures:
 retrieval: 30 cases, recall@5 1.00, MRR 0.95
 ```
 
-What each trigger costs: the retrieval suite is free (CPU embedder). The LLM-graded suites spend API tokens; the judge cache under `assistant/evals/cache/` makes reruns of unchanged answers free.
+What each trigger costs: the retrieval suite is free (CPU embedder). The LLM-graded suites spend about 1.50 USD per run, almost all of it on the chat model, so they run only on demand.
 
 ## The agent
 
@@ -130,7 +130,7 @@ The same portal tools are defined once in the API and served twice: to the in-ap
 
 ### Evaluation results
 
-`uv run evals` runs every suite and prints tokens spent and estimated cost. Judge verdicts are cached by content hash under `assistant/evals/cache/`, so reruns with unchanged answers cost nothing for the judge.
+`uv run evals` runs every suite and prints tokens spent and estimated cost. Judge verdicts are cached by content hash under `assistant/evals/cache/`; the hash includes the answer text, so the cache only helps when a rerun reproduces an answer exactly.
 
 | Suite | Cases | Grader | Threshold | Latest |
 |---|---|---|---|---|
