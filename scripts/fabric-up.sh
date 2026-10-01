@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fabric side of the demo, from the definitions in fabric/: workspace, lakehouse, Postgres connection,
-# copy pipeline (run once + daily schedule), Direct Lake semantic model, service-principal access.
+# copy pipeline (run once, on demand), Direct Lake semantic model, service-principal access.
 # Idempotent; rerun after editing fabric/.
 #
 # Requires:
@@ -126,7 +126,7 @@ if [ -z "$PG_CONNECTION_ID" ]; then
 fi
 log "connection $PG_CONNECTION_ID"
 
-# ---------------------------------------------------------------- copy pipeline: create/update, run once, schedule daily
+# ---------------------------------------------------------------- copy pipeline: create/update, run once
 sed -e "s/\${PG_CONNECTION_ID}/$PG_CONNECTION_ID/g" -e "s/\${WORKSPACE_ID}/$WS_ID/g" -e "s/\${LAKEHOUSE_ID}/$LH_ID/g" \
   fabric/pipeline/pipeline-content.json > /tmp/pipeline-content.json
 PIPE_DEF="{\"parts\":[$(part pipeline-content.json /tmp/pipeline-content.json)]}"
@@ -141,6 +141,11 @@ else
   lro "update pipeline" >/dev/null
 fi
 
+# Postgres admits only the apps' IPs; Fabric copies from Power BI service IPs, so open the door for this run.
+PG_SERVER=${PG_HOST%%.*}
+az postgres flexible-server firewall-rule create -g "$RG" -s "$PG_SERVER" -n fabric-pipeline \
+  --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0 -o none
+trap 'az postgres flexible-server firewall-rule delete -g "$RG" -s "$PG_SERVER" -n fabric-pipeline -y -o none' EXIT
 log "running the pipeline once"
 call POST "/workspaces/$WS_ID/items/$PIPE_ID/jobs/Pipeline/instances" "{}" >/dev/null; ok "run pipeline"   # empty body = HTTP 411
 JOB=$(loc)
@@ -158,14 +163,6 @@ done
 log "refreshing the SQL analytics endpoint metadata"
 call POST "/workspaces/$WS_ID/sqlEndpoints/$SQL_ENDPOINT_ID/refreshMetadata?preview=true" "{}" >/dev/null
 lro "refresh sql endpoint metadata" | jq -c '[.value[]? | {tableName,status}]' >&2 || true
-
-if [ "$(call GET "/workspaces/$WS_ID/items/$PIPE_ID/jobs/Pipeline/schedules" | jq '.value | length')" = 0 ]; then
-  log "daily schedule at 03:00 UTC"
-  call POST "/workspaces/$WS_ID/items/$PIPE_ID/jobs/Pipeline/schedules" "$(jq -n \
-    --arg s "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg e "$(date -u -v+60d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '+60 days' +%Y-%m-%dT%H:%M:%SZ)" \
-    '{enabled:true, configuration:{type:"Daily", startDateTime:$s, endDateTime:$e, localTimeZoneId:"UTC", times:["03:00"]}}')" >/dev/null
-  ok "create schedule"
-fi
 
 # ---------------------------------------------------------------- semantic model (Direct Lake over the lakehouse)
 sed -e "s/\${SQL_ENDPOINT}/$SQL_ENDPOINT/g" -e "s/\${SQL_ENDPOINT_ID}/$SQL_ENDPOINT_ID/g" \
