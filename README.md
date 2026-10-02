@@ -151,7 +151,7 @@ Every conversation is one distributed trace, and every assistant turn has a pric
 | Tracing | OpenTelemetry in all three services: `@vercel/otel` in the web app (server-side fetch spans, W3C context propagated to the assistant and the api), FastAPI and psycopg instrumentation in the assistant plus a `retrieval` span and one `claude.messages` span per model call carrying `gen_ai.request.model`, the four usage counters and the finish reason, ASP.NET Core, `HttpClient`, Npgsql and the MCP SDK's activity source in the api. The assistant injects `traceparent` into every `/mcp` call, so the api's tool spans and their SQL hang under the model call that asked for them |
 | Where traces go | Chosen by environment: `OTEL_EXPORTER_OTLP_ENDPOINT` sends OTLP to the Jaeger that `docker compose up` starts (http://localhost:16686); `APPLICATIONINSIGHTS_CONNECTION_STRING`, set by Bicep on App Service, sends to Application Insights; neither means no exporter and no overhead (tests) |
 | Cost per conversation | The assistant stores the `usage` of every turn (input, output, cache read, cache write tokens, model) in `rag.messages`. `GET /conversations/{id}/cost` prices them with the pinned table in `assistant/app/pricing.py` (list prices per million tokens; cache reads 0.1x input, cache writes 1.25x) and returns the per-bucket and total USD. `Thor.Admin` sees the running total under the conversation. A typical turn costs 0.03 to 0.08 USD; the eval runner's spend estimate uses the same table |
-| Demo | `scripts/demo.sh` starts the full stack from the published images (Postgres, Jaeger, api, assistant, web, mcp-m365), runs five scripted conversations through the assistant and api as the signed-in `az` user (cited answer, warranty tool call, a claim drafted and confirmed the way the browser does it, an out-of-corpus question, a prompt injection), prints each turn's tools and cost, then the free retrieval eval |
+| Demo | `scripts/demo.sh` starts the demo stack from the published images (Postgres, Jaeger, Keycloak, api, assistant, web), runs five scripted conversations through the assistant and api as the Keycloak user `dealer.user` (cited answer, warranty tool call, a claim drafted and confirmed the way the browser does it, an out-of-corpus question, a prompt injection), prints each turn's tools and cost, then the free retrieval eval |
 
 ![One trace: web proxy, assistant retrieval and Claude call, api /mcp tool calls and their Postgres queries](docs/screenshots/jaeger-trace.png)
 
@@ -240,7 +240,16 @@ Each choice, and the alternative it was preferred over.
 | Azure CLI + Bicep | 2.90+ / 0.47+ | `infra/`, Entra app registrations |
 | Azure Functions Core Tools | 4 | `functions/` local run |
 
-An Azure subscription and an Entra ID tenant are needed for sign-in and deployment. Everything else runs locally.
+Docker and an Anthropic API key run the whole portal locally (next section). An Azure subscription and an Entra ID tenant are needed only for the Azure deployment, SharePoint and Fabric.
+
+## Demo without a cloud account
+
+```bash
+cp .env.example .env            # fill in ANTHROPIC_API_KEY; leave the Azure block empty
+scripts/demo.sh                 # stack from the published images, five scripted conversations, eval, cost
+```
+
+`docker compose --profile demo up -d --wait` alone starts Postgres with pgvector, Jaeger, Keycloak (realm `dealer-portal` imported from `docker/keycloak/realm.json`), api, assistant and web; then open http://localhost:3000 and sign in as `dealer.user` or `dealer.admin` (Blue Ridge RV) or `thor.admin`, password `portal`. Reports come from SQL and documents from the fixtures; the SharePoint tools (mcp-m365) and the Fabric semantic model are Azure features and stay off. The browser reaches Keycloak at `localhost:8080` while the containers reach it at `keycloak:8080`, so `OIDC_ISSUER` is the public issuer every token names and `OIDC_ISSUER_INTERNAL` is where a service fetches the discovery document and keys; Keycloak's `KC_HOSTNAME_BACKCHANNEL_DYNAMIC` serves the matching endpoints to each side.
 
 ## Running locally
 
@@ -251,12 +260,12 @@ make migrate   # applies assistant/migrations to the rag schema
 make ingest    # indexes assistant/fixtures/docs (first run downloads the 33 MB embedding model)
 make evals     # retrieval eval against the indexed fixtures
 make check     # every check CI runs
-scripts/demo.sh   # the whole thing without the UI: full stack from images, five conversations, eval summary, total cost
+scripts/demo.sh   # the whole thing without the UI: demo stack from images, five conversations, eval summary, total cost
 ```
 
 `make up` also starts Jaeger; open http://localhost:16686 and pick the `web` service to see a conversation end to end.
 
-Fill `.env` with the sign-in values (`OIDC_*`, `AUTH_OIDC_*`; Entra values from `scripts/entra-setup.sh`, or the Keycloak values in `.env.example` with `docker run -p 8080:8080 -v ./docker/keycloak:/opt/keycloak/data/import quay.io/keycloak/keycloak:26.8 start-dev --import-realm`) plus `ANTHROPIC_API_KEY` before `make dev`. For plumbing work without API spend: `docker compose --profile local-llm up -d` and set `ANTHROPIC_BASE_URL=http://localhost:4000`, `ANTHROPIC_API_KEY=local` (needs Ollama with `qwen3` on the host). The API applies EF Core migrations on start and, when the database is empty, `docker/postgres/seed.sql` (3 dealers, 20 units, 30 claims, 15 parts orders). Sign in with one of the test users created by `scripts/entra-setup.sh`, or one of the Keycloak users (`dealer.user`, `dealer.admin`, `thor.admin`, password `portal`), one per role.
+Fill `.env` with `ANTHROPIC_API_KEY` and the sign-in values (`OIDC_*`, `AUTH_OIDC_*`: the commented Keycloak block in `.env.example` with `docker compose --profile demo up -d keycloak`, or the Entra values `scripts/entra-setup.sh` prints) before `make dev`. For plumbing work without API spend: `docker compose --profile local-llm up -d` and set `ANTHROPIC_BASE_URL=http://localhost:4000`, `ANTHROPIC_API_KEY=local` (needs Ollama with `qwen3` on the host). The API applies EF Core migrations on start and, when the database is empty, `docker/postgres/seed.sql` (3 dealers, 20 units, 30 claims, 15 parts orders). Sign in with one of the Keycloak users (`dealer.user`, `dealer.admin`, `thor.admin`, password `portal`) or one of the test users created by `scripts/entra-setup.sh`, one per role.
 
 Health checks: `web/health`, `api/health`, `assistant/health`.
 

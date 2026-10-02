@@ -28,13 +28,17 @@ builder.Services.AddDbContext<PortalDbContext>(o =>
             n => n.MigrationsHistoryTable("__EFMigrationsHistory", "public"))
         .UseSnakeCaseNamingConvention());
 
-// Any OpenID Connect provider: keys and endpoints come from OIDC_ISSUER's discovery document, the token's
-// aud must be OIDC_AUDIENCE. Entra ID is https://login.microsoftonline.com/<tenant>/v2.0 and the api client id;
-// the compose demo points at Keycloak over plain http, so https is not required for the metadata fetch.
+// Any OpenID Connect provider: tokens must name OIDC_ISSUER and carry OIDC_AUDIENCE; keys come from the discovery
+// document, fetched from OIDC_ISSUER_INTERNAL when the issuer's public hostname is not reachable from here (the
+// compose demo's Keycloak is localhost:8080 for the browser and keycloak:8080 for the containers). Entra ID is
+// https://login.microsoftonline.com/<tenant>/v2.0 and the api client id. Plain http is allowed for that Keycloak.
+var issuer = builder.Configuration["OIDC_ISSUER"];
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
-        o.Authority = builder.Configuration["OIDC_ISSUER"];
+        o.Authority = issuer;
+        o.MetadataAddress = $"{builder.Configuration["OIDC_ISSUER_INTERNAL"] ?? issuer}/.well-known/openid-configuration";
+        o.TokenValidationParameters.ValidIssuer = issuer;
         o.Audience = builder.Configuration["OIDC_AUDIENCE"];
         o.RequireHttpsMetadata = false;
         o.MapInboundClaims = false;   // keep oid, sub and roles under their wire names

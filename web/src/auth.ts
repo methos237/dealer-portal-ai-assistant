@@ -1,12 +1,17 @@
-import NextAuth from "next-auth";
+import NextAuth, { customFetch } from "next-auth";
 
 /**
  * Any OpenID Connect provider: endpoints come from OIDC_ISSUER's discovery document, the client is
  * AUTH_OIDC_ID / AUTH_OIDC_SECRET (read by Auth.js from the provider id). OIDC_API_SCOPE is the extra
  * scope that makes the access token valid for the api (Entra: api://<api-client-id>/access_as_user;
- * Keycloak puts the api audience in every token, so it stays empty).
+ * Keycloak puts the api audience in every token, so it stays empty). OIDC_ISSUER_INTERNAL is where this
+ * server reaches the issuer when its public hostname is not routable from here (compose: the browser sees
+ * Keycloak at localhost:8080, the containers at keycloak:8080); tokens still name OIDC_ISSUER.
  */
-const issuer = process.env.OIDC_ISSUER?.replace(/\/$/, "");
+const issuer = process.env.OIDC_ISSUER?.replace(/\/$/, "") ?? "";
+const internal = process.env.OIDC_ISSUER_INTERNAL?.replace(/\/$/, "") ?? issuer;
+const toInternal = (url: string) =>
+  url.startsWith(issuer) ? internal + url.slice(issuer.length) : url;
 const apiScope = process.env.OIDC_API_SCOPE ?? "";
 const scope = `openid profile email offline_access ${apiScope}`.trim();
 
@@ -44,9 +49,9 @@ let tokenEndpoint: string | undefined;
 
 async function refresh(token: PortalToken): Promise<PortalToken> {
   tokenEndpoint ??= (
-    await (await fetch(`${issuer}/.well-known/openid-configuration`)).json()
+    await (await fetch(`${internal}/.well-known/openid-configuration`)).json()
   ).token_endpoint;
-  const res = await fetch(tokenEndpoint!, {
+  const res = await fetch(toInternal(tokenEndpoint!), {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -77,6 +82,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       type: "oidc",
       issuer,
       authorization: { params: { scope } },
+      [customFetch]: (url, init) => fetch(toInternal(String(url)), init),
     },
   ],
   callbacks: {

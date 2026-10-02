@@ -36,15 +36,37 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  # `docker compose --profile full up --build`: the same images CI pushes to GHCR and Azure runs.
+  # Sign-in for the demo: realm dealer-portal from docker/keycloak/realm.json (three users, password `portal`).
+  # The browser reaches it at localhost:8080 and every token names that issuer; the containers reach it at
+  # keycloak:8080 (OIDC_ISSUER_INTERNAL below), which KC_HOSTNAME_BACKCHANNEL_DYNAMIC serves matching endpoints for.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8
+    profiles: ["demo"]
+    ports: ["8080:8080"]
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import:ro
+
+  # `docker compose --profile full up --build`: the same images CI pushes to GHCR and Azure runs, signed in through
+  # the OIDC_* values in .env (Entra). `--profile demo`: the same images plus Keycloak, no cloud account; the OIDC_*
+  # defaults below apply whenever .env leaves them empty.
   api:
     build: { context: ., dockerfile: api/Dockerfile }
     image: ghcr.io/methos237/dealer-portal-api
-    profiles: ["full"]
+    profiles: ["full", "demo"]
     ports: ["5080:5080"]
     env_file: .env
     environment:
       ConnectionStrings__Portal: Host=postgres;Port=5432;Database=dealer_portal;Username=postgres;Password=postgres
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:8080/realms/dealer-portal}
+      OIDC_ISSUER_INTERNAL: ${OIDC_ISSUER_INTERNAL:-${OIDC_ISSUER:-http://keycloak:8080/realms/dealer-portal}}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-dealer-portal-api}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     depends_on:
       postgres: { condition: service_healthy }
@@ -52,13 +74,16 @@ services:
   assistant:
     build: ./assistant
     image: ghcr.io/methos237/dealer-portal-assistant
-    profiles: ["full"]
+    profiles: ["full", "demo"]
     ports: ["8000:8000"]
     env_file: .env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dealer_portal
       PORTAL_API_URL: http://api:5080
-      M365_MCP_URL: http://mcp-m365:8100/mcp
+      M365_MCP_URL: ${M365_SITE:+http://mcp-m365:8100/mcp}   # SharePoint tools only when M365 is configured
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:8080/realms/dealer-portal}
+      OIDC_ISSUER_INTERNAL: ${OIDC_ISSUER_INTERNAL:-${OIDC_ISSUER:-http://keycloak:8080/realms/dealer-portal}}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-dealer-portal-api}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     volumes:
       - fastembed:/cache
@@ -75,7 +100,7 @@ services:
   web:
     build: ./web
     image: ghcr.io/methos237/dealer-portal-web
-    profiles: ["full"]
+    profiles: ["full", "demo"]
     ports: ["3000:3000"]
     env_file: .env
     environment:
@@ -83,6 +108,12 @@ services:
       ASSISTANT_URL: http://assistant:8000
       AUTH_URL: http://localhost:3000
       AUTH_TRUST_HOST: "true"
+      AUTH_SECRET: ${AUTH_SECRET:-demo-only-session-secret-not-for-production}
+      AUTH_OIDC_ID: ${AUTH_OIDC_ID:-dealer-portal-web}
+      AUTH_OIDC_SECRET: ${AUTH_OIDC_SECRET:-dealer-portal-web-secret}
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:8080/realms/dealer-portal}
+      OIDC_ISSUER_INTERNAL: ${OIDC_ISSUER_INTERNAL:-${OIDC_ISSUER:-http://keycloak:8080/realms/dealer-portal}}
+      OIDC_API_SCOPE: ${OIDC_API_SCOPE:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     depends_on: [api, assistant]
 

@@ -7,7 +7,7 @@ INSERT INTO portal.dealers (id, code, name) VALUES
   (3, 'D-300', 'High Desert RV');
 
 -- Token subject (Entra oid, or sub) -> dealer. The first three are the tenant's test users (scripts/entra-setup.sh);
--- 4, 5 and 8 are the Keycloak users in docker/keycloak/realm.json.
+-- 8, 10 and 11 are the Keycloak users in docker/keycloak/realm.json (the demo signs in as dealer 1).
 INSERT INTO portal.app_users (id, object_id, email, display_name, dealer_id) VALUES
   (1, '30b994d4-8277-4791-8801-b8553cda8dec', 'dealer.user@jeep8598gmail.onmicrosoft.com', 'Dana Ulrich (Dealer.User)', 1),
   (2, 'c6310899-1869-4f7c-9425-a6aa083999a6', 'dealer.admin@jeep8598gmail.onmicrosoft.com', 'Avery Dahl (Dealer.Admin)', 1),
@@ -17,7 +17,9 @@ INSERT INTO portal.app_users (id, object_id, email, display_name, dealer_id) VAL
   (6, '00000000-0000-4000-8000-000000000306', 'user@highdesert.example', 'Sam Reyes (Dealer.User)', 3),
   (7, '00000000-0000-4000-8000-000000000307', 'admin@highdesert.example', 'Jordan Whitfield (Dealer.Admin)', 3),
   (8, '00000000-0000-4000-8000-000000000008', 'warranty@thor.example', 'Casey Lindqvist (Thor.Admin)', NULL),
-  (9, '1136bcfb-6cfa-4198-ae8b-38af84bc1846', 'jeep8598@gmail.com', 'Tenant owner (Dealer.User, dev token for MCP clients)', 1);
+  (9, '1136bcfb-6cfa-4198-ae8b-38af84bc1846', 'jeep8598@gmail.com', 'Tenant owner (Dealer.User, dev token for MCP clients)', 1),
+  (10, '00000000-0000-4000-8000-000000000110', 'user@blueridge.example', 'Morgan Ellis (Dealer.User)', 1),
+  (11, '00000000-0000-4000-8000-000000000111', 'admin@blueridge.example', 'Riley Chen (Dealer.Admin)', 1);
 
 INSERT INTO portal.units (id, dealer_id, vin, model, delivery_date) VALUES
   (1, 1, '1THRA24X2RN000001', 'Aria 24', (CURRENT_DATE - INTERVAL '12 months')::date),

@@ -7,6 +7,8 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 
 export interface AuthConfig {
   issuer: string;
+  /** Where the discovery document lives when the issuer's public hostname is not reachable from here. */
+  discoveryUrl: string;
   audience: string;
   allowedRoles: string[];
 }
@@ -18,6 +20,7 @@ export function authFromEnv(env: NodeJS.ProcessEnv = process.env): AuthConfig {
     throw new Error("OIDC_ISSUER and OIDC_AUDIENCE are required");
   return {
     issuer,
+    discoveryUrl: `${(env.OIDC_ISSUER_INTERNAL ?? issuer).replace(/\/$/, "")}/.well-known/openid-configuration`,
     audience,
     allowedRoles: (env.M365_ALLOWED_ROLES ?? "Thor.Admin")
       .split(",")
@@ -34,7 +37,7 @@ export function makeVerifier(cfg: AuthConfig): Verifier {
   let jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
   const keys = async () => {
     if (!jwks) {
-      const res = await fetch(`${cfg.issuer}/.well-known/openid-configuration`);
+      const res = await fetch(cfg.discoveryUrl);
       if (!res.ok) throw new Error(`OIDC discovery failed: ${res.status}`);
       const { jwks_uri } = (await res.json()) as { jwks_uri: string };
       jwks = createRemoteJWKSet(new URL(jwks_uri));
