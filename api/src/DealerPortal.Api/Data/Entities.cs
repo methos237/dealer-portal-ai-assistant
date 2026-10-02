@@ -7,7 +7,7 @@ public class Dealer
     public required string Name { get; set; }
 }
 
-/// <summary>Maps an Entra user (oid claim) to a dealer. Thor.Admin users have no dealer.</summary>
+/// <summary>Maps a signed-in user (oid claim, or sub) to a dealer. Thor.Admin users have no dealer.</summary>
 public class AppUser
 {
     public int Id { get; set; }

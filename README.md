@@ -23,7 +23,7 @@ Built in phases, each tracked as a GitHub issue. See the issues list for progres
 
 ```
 Browser (Next.js, PWA)
-  │ Entra ID sign-in (Auth.js)          user bearer token on every call
+  │ OIDC sign-in (Auth.js)              user bearer token on every call
   ├──────────────► api  (ASP.NET Core)  /dealers /units /claims /parts-orders /documents
   │                 └── /mcp  (MCP streamable HTTP, same JWT, tools filtered by role)
   │                        ▲                           ▲
@@ -43,11 +43,11 @@ functions/ingest (Python, timer)  ── Graph delta ──► chunk, embed, ups
 Azure (infra/, Bicep): App Service B2 (web, api, assistant containers from GHCR) · Functions Flex (ingest) · Postgres Flexible B1ms · Azure OpenAI (embeddings) · Storage · Key Vault (all secrets) · App Insights · OIDC deploy from GitHub Actions
 ```
 
-The browser talks to the assistant with the user's own Entra token. The assistant retrieves chunks, calls Claude with a cached system prompt, the tool list and document blocks, and streams text and citation events. Tool calls go to the API's `/mcp` endpoint with the same token, so authorization is enforced in the API, never in the prompt. A `draft_*` tool result becomes a confirmation card, and the browser posts the actual write to the API itself. The assistant never writes.
+The browser talks to the assistant with the user's own access token. The assistant retrieves chunks, calls Claude with a cached system prompt, the tool list and document blocks, and streams text and citation events. Tool calls go to the API's `/mcp` endpoint with the same token, so authorization is enforced in the API, never in the prompt. A `draft_*` tool result becomes a confirmation card, and the browser posts the actual write to the API itself. The assistant never writes.
 
 ## The portal
 
-Dealers sign in with their Microsoft Entra ID work account. The web app requests a token for the portal API, and every API call carries that token; the API enforces tenancy and roles, never the UI.
+Dealers sign in through the OpenID Connect provider named by `OIDC_ISSUER`: Microsoft Entra ID on Azure, a Keycloak realm (`docker/keycloak/realm.json`) for a laptop with no cloud account. The web app requests a token for the portal API, and every API call carries that token; the API, assistant and mcp-m365 verify it against the issuer's discovery document and read the user from `oid` (Entra) or `sub`, roles from the `roles` claim. The API enforces tenancy and roles, never the UI.
 
 | Role | Sees | Can do |
 |---|---|---|
@@ -255,7 +255,7 @@ scripts/demo.sh   # the whole thing without the UI: full stack from images, five
 
 `make up` also starts Jaeger; open http://localhost:16686 and pick the `web` service to see a conversation end to end.
 
-Fill `.env` with the Azure and Entra values below plus `ANTHROPIC_API_KEY` before `make dev`. For plumbing work without API spend: `docker compose --profile local-llm up -d` and set `ANTHROPIC_BASE_URL=http://localhost:4000`, `ANTHROPIC_API_KEY=local` (needs Ollama with `qwen3` on the host). The API applies EF Core migrations on start and, when the database is empty, `docker/postgres/seed.sql` (3 dealers, 20 units, 30 claims, 15 parts orders). Sign in with one of the test users created by `scripts/entra-setup.sh` (one per role).
+Fill `.env` with the sign-in values (`OIDC_*`, `AUTH_OIDC_*`; Entra values from `scripts/entra-setup.sh`, or the Keycloak values in `.env.example` with `docker run -p 8080:8080 -v ./docker/keycloak:/opt/keycloak/data/import quay.io/keycloak/keycloak:26.8 start-dev --import-realm`) plus `ANTHROPIC_API_KEY` before `make dev`. For plumbing work without API spend: `docker compose --profile local-llm up -d` and set `ANTHROPIC_BASE_URL=http://localhost:4000`, `ANTHROPIC_API_KEY=local` (needs Ollama with `qwen3` on the host). The API applies EF Core migrations on start and, when the database is empty, `docker/postgres/seed.sql` (3 dealers, 20 units, 30 claims, 15 parts orders). Sign in with one of the test users created by `scripts/entra-setup.sh`, or one of the Keycloak users (`dealer.user`, `dealer.admin`, `thor.admin`, password `portal`), one per role.
 
 Health checks: `web/health`, `api/health`, `assistant/health`.
 

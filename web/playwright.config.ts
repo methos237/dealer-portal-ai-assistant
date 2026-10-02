@@ -24,11 +24,10 @@ export default defineConfig({
       env: {
         AUTH_SECRET: E2E_SECRET,
         AUTH_TRUST_HOST: "true",
-        AUTH_MICROSOFT_ENTRA_ID_ID: "e2e",
-        AUTH_MICROSOFT_ENTRA_ID_SECRET: "e2e",
-        AUTH_MICROSOFT_ENTRA_ID_ISSUER:
-          "https://login.microsoftonline.com/common/v2.0",
-        ENTRA_API_SCOPE: "api://e2e/access_as_user",
+        AUTH_OIDC_ID: "e2e",
+        AUTH_OIDC_SECRET: "e2e",
+        OIDC_ISSUER: "http://localhost:8080/realms/e2e",
+        OIDC_API_SCOPE: "",
         PORTAL_API_URL: "http://localhost:5081",
       },
     },

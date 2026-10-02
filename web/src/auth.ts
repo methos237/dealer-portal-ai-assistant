@@ -1,8 +1,13 @@
 import NextAuth from "next-auth";
-import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 
-/** Scope of the API token; the same audience carries the app roles. */
-const apiScope = process.env.ENTRA_API_SCOPE ?? "";
+/**
+ * Any OpenID Connect provider: endpoints come from OIDC_ISSUER's discovery document, the client is
+ * AUTH_OIDC_ID / AUTH_OIDC_SECRET (read by Auth.js from the provider id). OIDC_API_SCOPE is the extra
+ * scope that makes the access token valid for the api (Entra: api://<api-client-id>/access_as_user;
+ * Keycloak puts the api audience in every token, so it stays empty).
+ */
+const issuer = process.env.OIDC_ISSUER?.replace(/\/$/, "");
+const apiScope = process.env.OIDC_API_SCOPE ?? "";
 const scope = `openid profile email offline_access ${apiScope}`.trim();
 
 declare module "next-auth" {
@@ -35,25 +40,23 @@ export function rolesFromAccessToken(
   }
 }
 
+let tokenEndpoint: string | undefined;
+
 async function refresh(token: PortalToken): Promise<PortalToken> {
-  const tenant =
-    process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER?.match(
-      /microsoftonline\.com\/([^/]+)/,
-    )?.[1] ?? "common";
-  const res = await fetch(
-    `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        client_id: process.env.AUTH_MICROSOFT_ENTRA_ID_ID ?? "",
-        client_secret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET ?? "",
-        refresh_token: token.refreshToken ?? "",
-        scope,
-      }),
-    },
-  );
+  tokenEndpoint ??= (
+    await (await fetch(`${issuer}/.well-known/openid-configuration`)).json()
+  ).token_endpoint;
+  const res = await fetch(tokenEndpoint!, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: process.env.AUTH_OIDC_ID ?? "",
+      client_secret: process.env.AUTH_OIDC_SECRET ?? "",
+      refresh_token: token.refreshToken ?? "",
+      scope,
+    }),
+  });
   if (!res.ok) return { ...token, error: "RefreshFailed" };
   const data = await res.json();
   return {
@@ -67,7 +70,15 @@ async function refresh(token: PortalToken): Promise<PortalToken> {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  providers: [MicrosoftEntraID({ authorization: { params: { scope } } })],
+  providers: [
+    {
+      id: "oidc",
+      name: "Single sign-on",
+      type: "oidc",
+      issuer,
+      authorization: { params: { scope } },
+    },
+  ],
   callbacks: {
     async jwt({ token, account }) {
       const t = token as typeof token & PortalToken;

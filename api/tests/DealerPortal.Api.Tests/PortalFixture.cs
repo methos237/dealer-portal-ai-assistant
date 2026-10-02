@@ -52,11 +52,16 @@ public sealed class PortalFixture : IAsyncLifetime
         await _postgres.DisposeAsync();
     }
 
-    /// <summary>Client acting as the given Entra oid with the given app roles.</summary>
-    public HttpClient ClientAs(string oid, params string[] roles)
+    /// <summary>Client acting as the given oid (or sub, for non-Entra providers) with the given app roles.</summary>
+    public HttpClient ClientAs(string oid, params string[] roles) => Client(TestAuthHandler.OidHeader, oid, roles);
+
+    /// <summary>Client whose token carries only <c>sub</c>, as any non-Entra OIDC provider issues.</summary>
+    public HttpClient ClientAsSub(string sub, params string[] roles) => Client(TestAuthHandler.SubHeader, sub, roles);
+
+    HttpClient Client(string idHeader, string id, string[] roles)
     {
         var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(TestAuthHandler.OidHeader, oid);
+        client.DefaultRequestHeaders.Add(idHeader, id);
         client.DefaultRequestHeaders.Add(TestAuthHandler.RolesHeader, string.Join(",", roles));
         return client;
     }
@@ -68,16 +73,27 @@ public sealed class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions>
 {
     public const string SchemeName = "Test";
     public const string OidHeader = "X-Test-Oid";
+    public const string SubHeader = "X-Test-Sub";
     public const string RolesHeader = "X-Test-Roles";
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!Request.Headers.TryGetValue(OidHeader, out var oid))
+        var claims = new List<System.Security.Claims.Claim>();
+        if (Request.Headers.TryGetValue(OidHeader, out var oid))
+        {
+            claims.Add(new("oid", oid.ToString()));
+        }
+
+        if (Request.Headers.TryGetValue(SubHeader, out var sub))
+        {
+            claims.Add(new("sub", sub.ToString()));
+        }
+
+        if (claims.Count == 0)
         {
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        var claims = new List<System.Security.Claims.Claim> { new("oid", oid.ToString()) };
         claims.AddRange(Request.Headers[RolesHeader].ToString()
             .Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(r => new System.Security.Claims.Claim("roles", r)));

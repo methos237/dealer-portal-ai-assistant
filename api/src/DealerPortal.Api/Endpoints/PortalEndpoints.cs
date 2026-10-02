@@ -37,7 +37,7 @@ public static class PortalEndpoints
         var dealer = me.DealerId is int id
             ? await db.Dealers.Where(d => d.Id == id).Select(d => new DealerDto(d.Id, d.Code, d.Name)).FirstOrDefaultAsync()
             : null;
-        // Entra v2 tokens carry app roles in "roles"; the JWT handler may map them to the standard role claim.
+        // Roles arrive in the "roles" claim; the standard role claim is accepted too.
         var roles = http.User.FindAll("roles").Concat(http.User.FindAll(System.Security.Claims.ClaimTypes.Role))
             .Select(c => c.Value).Distinct().ToArray();
         return new MeDto(dealer, roles);

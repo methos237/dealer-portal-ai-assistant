@@ -34,25 +34,17 @@ export default async function Home() {
         <div className="m-auto w-full max-w-sm">
           <h2 className="text-2xl font-semibold">Sign in</h2>
           <p className="mt-2 text-fg-muted">
-            Use the Microsoft account your dealership gave you. Your role
-            decides what you can see.
+            Use the work account your dealership gave you. Your role decides
+            what you can see.
           </p>
           <form
             action={async () => {
               "use server";
-              await signIn("microsoft-entra-id", { redirectTo: "/dashboard" });
+              await signIn("oidc", { redirectTo: "/dashboard" });
             }}
             className="mt-8"
           >
-            <button className="btn btn-primary w-full">
-              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
-                <rect x="1" y="1" width="7.5" height="7.5" fill="#f25022" />
-                <rect x="9.5" y="1" width="7.5" height="7.5" fill="#7fba00" />
-                <rect x="1" y="9.5" width="7.5" height="7.5" fill="#00a4ef" />
-                <rect x="9.5" y="9.5" width="7.5" height="7.5" fill="#ffb900" />
-              </svg>
-              Sign in with Microsoft
-            </button>
+            <button className="btn btn-primary w-full">Sign in</button>
           </form>
         </div>
         <p className="text-sm text-fg-subtle">
