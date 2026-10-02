@@ -90,6 +90,21 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
+  # Folder document source: drop .md or .pdf files into ./documents and the next minute's run indexes them
+  # (content hash skips unchanged files). The local stand-in for the SharePoint timer Function on Azure.
+  ingest:
+    image: ghcr.io/methos237/dealer-portal-assistant
+    profiles: ["full", "demo"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dealer_portal
+    volumes:
+      - ./documents:/documents:ro
+      - fastembed:/cache
+    command: ["sh", "-c", "python -m rag.migrate && while :; do python -m rag.ingest /documents | grep -v '^skipped'; sleep 60; done"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
   mcp-m365:
     build: ./mcp-m365
     image: ghcr.io/methos237/dealer-portal-mcp-m365
