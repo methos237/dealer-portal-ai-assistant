@@ -5,7 +5,7 @@ using Microsoft.Identity.Client;
 
 namespace DealerPortal.Api.Reports;
 
-/// <summary>Fabric semantic model the api reports from. Unset (the default) turns reporting off with a 503.</summary>
+/// <summary>Fabric semantic model the api reports from. Unset (the default) selects <see cref="SqlReportSource"/>.</summary>
 public class PowerBiOptions
 {
     public string? WorkspaceId { get; set; }
@@ -21,7 +21,7 @@ public delegate Task<string> PowerBiToken(CancellationToken ct);
 /// security cannot be applied through a service principal on that endpoint (documented limitation), so the
 /// tenancy filter is built into every query here from the caller's dealer id, as it is for the EF queries.
 /// </summary>
-public class PowerBiClient(HttpClient http, PowerBiToken token, IOptions<PowerBiOptions> options)
+public class PowerBiClient(HttpClient http, PowerBiToken token, IOptions<PowerBiOptions> options) : IReportSource
 {
     public const string Scope = "https://analysis.windows.net/powerbi/api/.default";
     const int TopParts = 5;
