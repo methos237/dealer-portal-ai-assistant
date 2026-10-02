@@ -48,16 +48,32 @@ public class ReportsTests(PortalFixture fx) : IClassFixture<PortalFixture>
     }
 
     [Fact]
-    public async Task Unconfigured_reporting_is_a_503_problem()
+    public async Task Without_power_bi_the_summary_comes_from_sql_with_the_same_figures()
     {
+        fx.PowerBi.Queries.Clear();
         using var factory = fx.Factory.WithWebHostBuilder(b => b.UseSetting("PowerBi:WorkspaceId", ""));
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add(TestAuthHandler.OidHeader, Dealer1User);
-        client.DefaultRequestHeaders.Add(TestAuthHandler.RolesHeader, "Dealer.User");
+        var dealer = factory.CreateClient();
+        dealer.DefaultRequestHeaders.Add(TestAuthHandler.OidHeader, Dealer1User);
+        dealer.DefaultRequestHeaders.Add(TestAuthHandler.RolesHeader, "Dealer.User");
+        var thor = factory.CreateClient();
+        thor.DefaultRequestHeaders.Add(TestAuthHandler.OidHeader, ThorAdmin);
+        thor.DefaultRequestHeaders.Add(TestAuthHandler.RolesHeader, "Thor.Admin");
 
-        var res = await client.GetAsync("/reports/summary");
+        var s = await dealer.GetFromJsonAsync<ReportSummaryDto>("/reports/summary", Json);
+        var all = await thor.GetFromJsonAsync<ReportSummaryDto>("/reports/summary", Json);
 
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, res.StatusCode);
-        Assert.Equal("Reporting not configured", (await res.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("title").GetString());
+        // Dealer 1 on docker/postgres/seed.sql, the figures the Fabric model returned on Azure (roadmap Phase 6).
+        Assert.Equal(1, s!.DealerId);
+        Assert.Equal(15, s.Totals.ClaimCount);
+        Assert.Equal(79179.00m, s.Totals.ClaimAmount);
+        Assert.Equal(3.0m, s.Totals.AvgDaysToClose);
+        Assert.Equal(2, s.Totals.OpenPartsOrders);
+        Assert.Equal(["2026-04", "2026-05", "2026-06", "2026-07", "2026-09"], s.ClaimsByMonth.Select(m => m.Month));
+        Assert.Equal(s.Totals.ClaimAmount, s.ClaimsByMonth.Sum(m => m.Amount));
+        Assert.Equal(5, s.TopParts.Count);
+        Assert.Equal(("BAT-AGM-100", 7), (s.TopParts[0].Sku, s.TopParts[0].Quantity));
+        Assert.Null(all!.DealerId);
+        Assert.Equal(30, all.Totals.ClaimCount);
+        Assert.Empty(fx.PowerBi.Queries);
     }
 }

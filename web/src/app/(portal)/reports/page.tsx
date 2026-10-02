@@ -1,6 +1,5 @@
 import { BarChart } from "@/components/BarChart";
 import { getReportSummary } from "@/lib/api";
-import { ApiError } from "@/lib/api-client";
 import { fillMonths, monthLabel } from "@/lib/reports";
 import type { ReportSummary } from "@/lib/types";
 
@@ -9,26 +8,7 @@ export const metadata = { title: "Reports" };
 import { money } from "@/lib/format";
 
 export default async function ReportsPage() {
-  let summary: ReportSummary;
-  try {
-    summary = await getReportSummary();
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 503) {
-      return (
-        <>
-          <h1 className="page-title">Reports</h1>
-          <div className="card mt-6 max-w-xl p-6">
-            <h2 className="text-lg">Reporting is not set up here</h2>
-            <p className="mt-2 text-fg-muted">
-              This environment has no Fabric semantic model. Claims and orders
-              still work; only the figures on this page are missing.
-            </p>
-          </div>
-        </>
-      );
-    }
-    throw e;
-  }
+  const summary: ReportSummary = await getReportSummary();
   const { totals, topParts } = summary;
   const months = fillMonths(summary.claimsByMonth);
   const bars = months.map((m) => ({

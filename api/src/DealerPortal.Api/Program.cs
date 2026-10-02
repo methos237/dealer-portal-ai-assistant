@@ -6,6 +6,7 @@ using DealerPortal.Api.Reports;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.AspNetCore;
 using Azure.Monitor.OpenTelemetry.Exporter;
 using Npgsql;
@@ -40,12 +41,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorizationBuilder().AddPortalPolicies();
 
-// Reports come from the Fabric semantic model over Power BI REST, as the dealer-portal-m365 app (same
-// credentials as mcp-m365), cached five minutes per dealer scope. Unconfigured = 503 from /reports/summary.
+// Reports come from the Fabric semantic model over Power BI REST when PowerBi__* is set (as the dealer-portal-m365
+// app, same credentials as mcp-m365), otherwise from SQL over portal.*; cached five minutes per dealer scope.
 builder.Services.AddMemoryCache();
 builder.Services.Configure<PowerBiOptions>(builder.Configuration.GetSection("PowerBi"));
 builder.Services.AddSingleton(PowerBiClient.ClientCredentials(builder.Configuration));
 builder.Services.AddHttpClient<PowerBiClient>(c => c.BaseAddress = new Uri("https://api.powerbi.com/v1.0/myorg/"));
+builder.Services.AddScoped<SqlReportSource>();
+builder.Services.AddScoped<IReportSource>(sp => sp.GetRequiredService<IOptions<PowerBiOptions>>().Value.Configured
+    ? sp.GetRequiredService<PowerBiClient>()
+    : sp.GetRequiredService<SqlReportSource>());
 
 // Tracing is on only when a destination exists: OTLP (Jaeger in compose) and/or Application Insights (Azure).
 // Neither variable set (tests, plain `dotnet run`) means no exporter and no overhead.
