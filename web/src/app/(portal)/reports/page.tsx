@@ -32,7 +32,8 @@ export default async function ReportsPage() {
         {summary.dealerId === null
           ? "All dealers"
           : `Dealer ${summary.dealerId}`}
-        . Figures come from the Fabric semantic model and refresh daily.
+        . Claims, amounts, days to close and open parts orders, by month and by
+        part.
       </p>
 
       <dl className="card mt-6 grid grid-cols-2 divide-border md:grid-cols-4 md:divide-x">

@@ -32,6 +32,13 @@ def issuer() -> str:
     return os.environ["OIDC_ISSUER"].rstrip("/")
 
 
+def discovery_url() -> str:
+    """Discovery document location: the issuer, or OIDC_ISSUER_INTERNAL when the issuer's public
+    hostname is not reachable from here (compose: localhost:8080 outside, keycloak:8080 inside)."""
+    base = os.environ.get("OIDC_ISSUER_INTERNAL", issuer()).rstrip("/")
+    return f"{base}/.well-known/openid-configuration"
+
+
 def audience() -> str:
     return os.environ["OIDC_AUDIENCE"]
 
@@ -42,7 +49,7 @@ def portal_api_url() -> str:
 
 @lru_cache
 def _jwks() -> PyJWKClient:
-    discovery = httpx.get(f"{issuer()}/.well-known/openid-configuration", timeout=30)
+    discovery = httpx.get(discovery_url(), timeout=30)
     discovery.raise_for_status()
     return PyJWKClient(discovery.json()["jwks_uri"])
 
