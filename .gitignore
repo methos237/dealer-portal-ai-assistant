@@ -46,5 +46,9 @@ infra/**/*.json
 web/next-env.d.ts
 :memory:.ses
 
+# Folder document source (docker-compose ingest service)
+documents/*
+!documents/.gitkeep
+
 # mcp-m365 build output
 mcp-m365/dist/

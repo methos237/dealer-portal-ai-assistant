@@ -77,7 +77,7 @@ Retrieval-augmented answers with real citations, streamed to the browser.
 
 | Step | How |
 |---|---|
-| Documents | Synthetic owner manuals and service bulletins under `assistant/fixtures/docs` (Markdown, plus PDFs rendered from three of them). One bulletin carries a prompt-injection payload for the evaluation suite |
+| Documents | Synthetic owner manuals and service bulletins under `assistant/fixtures/docs` (Markdown, plus PDFs rendered from three of them). One bulletin carries a prompt-injection payload for the evaluation suite. In compose, the `ingest` service also indexes whatever `.md` or `.pdf` lands in `documents/` once a minute, the local stand-in for the SharePoint timer Function |
 | Chunking | Split on Markdown headings, keep the heading path as context, then ~800-token windows with 100-token overlap (token count approximated as words × 1.3). PDFs are windowed per page with the page number kept |
 | Embeddings | Chosen by environment. Default `fastembed` (`BAAI/bge-small-en-v1.5`, 384 dims, ONNX, offline, free) for local dev, tests and the PR eval. Azure OpenAI `text-embedding-3-small` (1536 dims) when `AZURE_OPENAI_ENDPOINT` is set, for the Azure deployment. The vector column dimension is fixed at migration time from the configured provider and the app refuses to start against a mismatched index |
 | Retrieval | Hybrid: `ts_rank_cd` over a stored `tsvector` (top 20) plus cosine over an HNSW index (top 20), fused by reciprocal rank, six chunks to the model. Dealer-scoped documents are filtered in SQL |
@@ -249,7 +249,7 @@ cp .env.example .env            # fill in ANTHROPIC_API_KEY; leave the Azure blo
 scripts/demo.sh                 # stack from the published images, five scripted conversations, eval, cost
 ```
 
-`docker compose --profile demo up -d --wait` alone starts Postgres with pgvector, Jaeger, Keycloak (realm `dealer-portal` imported from `docker/keycloak/realm.json`), api, assistant and web; then open http://localhost:3000 and sign in as `dealer.user` or `dealer.admin` (Blue Ridge RV) or `thor.admin`, password `portal`. Reports come from SQL and documents from the fixtures; the SharePoint tools (mcp-m365) and the Fabric semantic model are Azure features and stay off. The browser reaches Keycloak at `localhost:8080` while the containers reach it at `keycloak:8080`, so `OIDC_ISSUER` is the public issuer every token names and `OIDC_ISSUER_INTERNAL` is where a service fetches the discovery document and keys; Keycloak's `KC_HOSTNAME_BACKCHANNEL_DYNAMIC` serves the matching endpoints to each side.
+`docker compose --profile demo up -d --wait` alone starts Postgres with pgvector, Jaeger, Keycloak (realm `dealer-portal` imported from `docker/keycloak/realm.json`), api, assistant and web; then open http://localhost:3000 and sign in as `dealer.user` or `dealer.admin` (Blue Ridge RV) or `thor.admin`, password `portal`. Reports come from SQL and documents from the fixtures plus anything dropped into `documents/` (indexed within a minute by the `ingest` service); the SharePoint tools (mcp-m365) and the Fabric semantic model are Azure features and stay off. The browser reaches Keycloak at `localhost:8080` while the containers reach it at `keycloak:8080`, so `OIDC_ISSUER` is the public issuer every token names and `OIDC_ISSUER_INTERNAL` is where a service fetches the discovery document and keys; Keycloak's `KC_HOSTNAME_BACKCHANNEL_DYNAMIC` serves the matching endpoints to each side.
 
 ## Running locally
 
