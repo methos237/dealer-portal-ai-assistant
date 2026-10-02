@@ -6,7 +6,8 @@ INSERT INTO portal.dealers (id, code, name) VALUES
   (2, 'D-200', 'Lakeshore Motorhomes'),
   (3, 'D-300', 'High Desert RV');
 
--- Entra oid -> dealer. The first three are the tenant's test users (scripts/entra-setup.sh).
+-- Token subject (Entra oid, or sub) -> dealer. The first three are the tenant's test users (scripts/entra-setup.sh);
+-- 4, 5 and 8 are the Keycloak users in docker/keycloak/realm.json.
 INSERT INTO portal.app_users (id, object_id, email, display_name, dealer_id) VALUES
   (1, '30b994d4-8277-4791-8801-b8553cda8dec', 'dealer.user@jeep8598gmail.onmicrosoft.com', 'Dana Ulrich (Dealer.User)', 1),
   (2, 'c6310899-1869-4f7c-9425-a6aa083999a6', 'dealer.admin@jeep8598gmail.onmicrosoft.com', 'Avery Dahl (Dealer.Admin)', 1),

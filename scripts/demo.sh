@@ -19,7 +19,7 @@ for url in http://localhost:5080/health http://localhost:8000/health; do
 done
 
 log "portal token for $(az account show --query user.name -o tsv)"
-PORTAL_TOKEN=$(az account get-access-token --resource "${ENTRA_API_SCOPE%/*}" --query accessToken -o tsv)
+PORTAL_TOKEN=$(az account get-access-token --resource "${OIDC_API_SCOPE%/*}" --query accessToken -o tsv)
 
 log "five scripted conversations"
 (cd assistant && PORTAL_TOKEN="$PORTAL_TOKEN" uv run --env-file ../.env python -m evals.demo)

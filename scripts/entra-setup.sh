@@ -16,7 +16,7 @@ set -euo pipefail
 
 GRAPH=https://graph.microsoft.com/v1.0
 # Local dev plus the Azure hostname from infra/apps.bicep; override WEB_REDIRECT_URIS (space separated) for others.
-WEB_REDIRECT_URIS=${WEB_REDIRECT_URIS:-"http://localhost:3000/api/auth/callback/microsoft-entra-id https://app-dealer-portal-web.azurewebsites.net/api/auth/callback/microsoft-entra-id"}
+WEB_REDIRECT_URIS=${WEB_REDIRECT_URIS:-"http://localhost:3000/api/auth/callback/oidc https://app-dealer-portal-web.azurewebsites.net/api/auth/callback/oidc"}
 TEST_USER_PASSWORD=${TEST_USER_PASSWORD:-$(openssl rand -base64 18)}
 
 TENANT_ID=$(az account show --query tenantId -o tsv)
@@ -154,13 +154,12 @@ assign_role "thor.admin@$TENANT_DOMAIN"   Thor.Admin
 # ---------------------------------------------------------------- output
 cat <<ENV
 
-# Entra ID (scripts/entra-setup.sh)
-AUTH_MICROSOFT_ENTRA_ID_ID=$WEB_APP_ID
-AUTH_MICROSOFT_ENTRA_ID_SECRET=$WEB_SECRET
-AUTH_MICROSOFT_ENTRA_ID_ISSUER=https://login.microsoftonline.com/$TENANT_ID/v2.0
-ENTRA_API_SCOPE=api://$API_APP_ID/access_as_user
-AzureAd__TenantId=$TENANT_ID
-AzureAd__ClientId=$API_APP_ID
+# OpenID Connect, Entra ID flavour (scripts/entra-setup.sh)
+OIDC_ISSUER=https://login.microsoftonline.com/$TENANT_ID/v2.0
+OIDC_AUDIENCE=$API_APP_ID
+OIDC_API_SCOPE=api://$API_APP_ID/access_as_user
+AUTH_OIDC_ID=$WEB_APP_ID
+AUTH_OIDC_SECRET=$WEB_SECRET
 TEST_USER_PASSWORD=$TEST_USER_PASSWORD
 TEST_USER_DEALER_USER=dealer.user@$TENANT_DOMAIN
 TEST_USER_DEALER_ADMIN=dealer.admin@$TENANT_DOMAIN

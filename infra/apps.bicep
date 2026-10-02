@@ -43,10 +43,10 @@ var settings = {
     AUTH_URL: 'https://${hosts.web}'
     AUTH_TRUST_HOST: 'true'
     AUTH_SECRET: '@${kv}auth-secret)'
-    AUTH_MICROSOFT_ENTRA_ID_ID: webClientId
-    AUTH_MICROSOFT_ENTRA_ID_SECRET: '@${kv}web-client-secret)'
-    AUTH_MICROSOFT_ENTRA_ID_ISSUER: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0'
-    ENTRA_API_SCOPE: entraApiScope
+    AUTH_OIDC_ID: webClientId
+    AUTH_OIDC_SECRET: '@${kv}web-client-secret)'
+    OIDC_ISSUER: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0'
+    OIDC_API_SCOPE: entraApiScope
     PORTAL_API_URL: 'https://${hosts.api}'
     ASSISTANT_URL: 'https://${hosts.assistant}'
   })
@@ -54,8 +54,8 @@ var settings = {
     WEBSITES_PORT: '5080'
     ASPNETCORE_ENVIRONMENT: 'Production'
     ConnectionStrings__Portal: '@${kv}postgres-connection-api)'
-    AzureAd__TenantId: entraTenantId
-    AzureAd__ClientId: apiClientId
+    OIDC_ISSUER: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0'
+    OIDC_AUDIENCE: apiClientId
     // Power BI REST as the dealer-portal-m365 app; ids come from GitHub variables after scripts/fabric-up.sh
     PowerBi__WorkspaceId: powerBiWorkspaceId
     PowerBi__SemanticModelId: powerBiSemanticModelId
@@ -67,8 +67,8 @@ var settings = {
     WEBSITES_PORT: '8000'
     DATABASE_URL: '@${kv}database-url)'
     PORTAL_API_URL: 'https://${hosts.api}'
-    AzureAd__TenantId: entraTenantId
-    AzureAd__ClientId: apiClientId
+    OIDC_ISSUER: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0'
+    OIDC_AUDIENCE: apiClientId
     ANTHROPIC_API_KEY: '@${kv}anthropic-api-key)'
     AZURE_OPENAI_ENDPOINT: openAiEndpoint
     AZURE_OPENAI_API_KEY: '@${kv}openai-api-key)'

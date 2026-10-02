@@ -1,0 +1,81 @@
+{
+  "realm": "dealer-portal",
+  "enabled": true,
+  "sslRequired": "external",
+  "roles": {
+    "realm": [
+      { "name": "Dealer.User", "description": "Dealer staff: read units, file claims and parts orders for own dealer." },
+      { "name": "Dealer.Admin", "description": "Dealer management: everything Dealer.User plus dealer user administration." },
+      { "name": "Thor.Admin", "description": "Manufacturer staff: all dealers, claim approval, reporting." }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "dealer-portal-web",
+      "name": "Dealer Portal (web)",
+      "publicClient": false,
+      "secret": "dealer-portal-web-secret",
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "defaultClientScopes": ["basic", "openid", "profile", "email", "roles"],
+      "optionalClientScopes": ["offline_access"],
+      "protocolMappers": [
+        {
+          "name": "api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "dealer-portal-api", "access.token.claim": "true" }
+        },
+        {
+          "name": "roles claim",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        }
+      ]
+    },
+    { "clientId": "dealer-portal-api", "name": "Dealer Portal (api)", "bearerOnly": true }
+  ],
+  "users": [
+    {
+      "id": "00000000-0000-4000-8000-000000000204",
+      "username": "dealer.user",
+      "email": "user@lakeshore.example",
+      "firstName": "Lee",
+      "lastName": "Okafor",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "portal" }],
+      "realmRoles": ["Dealer.User", "offline_access"]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000205",
+      "username": "dealer.admin",
+      "email": "admin@lakeshore.example",
+      "firstName": "Priya",
+      "lastName": "Natarajan",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "portal" }],
+      "realmRoles": ["Dealer.Admin", "offline_access"]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000008",
+      "username": "thor.admin",
+      "email": "warranty@thor.example",
+      "firstName": "Casey",
+      "lastName": "Lindqvist",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "portal" }],
+      "realmRoles": ["Thor.Admin", "offline_access"]
+    }
+  ]
+}

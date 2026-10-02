@@ -6,7 +6,6 @@ using DealerPortal.Api.Reports;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Identity.Web;
 using ModelContextProtocol.AspNetCore;
 using Azure.Monitor.OpenTelemetry.Exporter;
 using Npgsql;
@@ -28,8 +27,17 @@ builder.Services.AddDbContext<PortalDbContext>(o =>
             n => n.MigrationsHistoryTable("__EFMigrationsHistory", "public"))
         .UseSnakeCaseNamingConvention());
 
+// Any OpenID Connect provider: keys and endpoints come from OIDC_ISSUER's discovery document, the token's
+// aud must be OIDC_AUDIENCE. Entra ID is https://login.microsoftonline.com/<tenant>/v2.0 and the api client id;
+// the compose demo points at Keycloak over plain http, so https is not required for the metadata fetch.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+    .AddJwtBearer(o =>
+    {
+        o.Authority = builder.Configuration["OIDC_ISSUER"];
+        o.Audience = builder.Configuration["OIDC_AUDIENCE"];
+        o.RequireHttpsMetadata = false;
+        o.MapInboundClaims = false;   // keep oid, sub and roles under their wire names
+    });
 builder.Services.AddAuthorizationBuilder().AddPortalPolicies();
 
 // Reports come from the Fabric semantic model over Power BI REST, as the dealer-portal-m365 app (same

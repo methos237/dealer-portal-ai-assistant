@@ -46,6 +46,16 @@ public class PortalApiTests(PortalFixture fx) : IClassFixture<PortalFixture>
     }
 
     [Fact]
+    public async Task Sub_claim_identifies_the_user_when_oid_is_absent()
+    {
+        var viaSub = await fx.ClientAsSub(Dealer2User, "Dealer.User").GetFromJsonAsync<List<UnitDto>>("/units", Json);
+        var viaOid = await fx.ClientAs(Dealer2User, "Dealer.User").GetFromJsonAsync<List<UnitDto>>("/units", Json);
+
+        Assert.NotEmpty(viaSub!);
+        Assert.Equal(viaOid!.Select(u => u.Vin), viaSub!.Select(u => u.Vin));
+    }
+
+    [Fact]
     public async Task Dealer_sees_only_its_own_units_and_thor_admin_sees_all()
     {
         var mine = await fx.ClientAs(Dealer1User, "Dealer.User").GetFromJsonAsync<List<UnitDto>>("/units", Json);

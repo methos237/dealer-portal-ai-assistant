@@ -1,4 +1,4 @@
-// Minimal stand-in for the portal API so the Playwright smoke test runs without Entra or Postgres.
+// Minimal stand-in for the portal API so the Playwright smoke test runs without an identity provider or Postgres.
 import { createServer } from "node:http";
 
 const today = new Date();

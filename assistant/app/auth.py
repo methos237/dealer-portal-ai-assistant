@@ -1,8 +1,9 @@
 """Caller identity for the assistant.
 
-The web app forwards the user's Entra access token for dealer-portal-api. We validate it here
-(signature, issuer, audience) and ask the portal API who the caller is, so tenancy decisions are
-made by the API's own rules rather than duplicated in the assistant.
+The web app forwards the user's access token for the portal api. We validate it here (signature,
+issuer, audience) against whatever OpenID Connect provider OIDC_ISSUER names (Entra ID on Azure,
+Keycloak in the local demo) and ask the portal API who the caller is, so tenancy decisions are made
+by the API's own rules rather than duplicated in the assistant.
 """
 
 import os
@@ -27,12 +28,12 @@ class User:
         return "Thor.Admin" in self.roles
 
 
-def tenant_id() -> str:
-    return os.environ["AzureAd__TenantId"]
+def issuer() -> str:
+    return os.environ["OIDC_ISSUER"].rstrip("/")
 
 
 def audience() -> str:
-    return os.environ["AzureAd__ClientId"]
+    return os.environ["OIDC_AUDIENCE"]
 
 
 def portal_api_url() -> str:
@@ -41,7 +42,9 @@ def portal_api_url() -> str:
 
 @lru_cache
 def _jwks() -> PyJWKClient:
-    return PyJWKClient(f"https://login.microsoftonline.com/{tenant_id()}/discovery/v2.0/keys")
+    discovery = httpx.get(f"{issuer()}/.well-known/openid-configuration", timeout=30)
+    discovery.raise_for_status()
+    return PyJWKClient(discovery.json()["jwks_uri"])
 
 
 def decode_token(token: str) -> dict:
@@ -51,7 +54,7 @@ def decode_token(token: str) -> dict:
         key,
         algorithms=["RS256"],
         audience=audience(),
-        issuer=f"https://login.microsoftonline.com/{tenant_id()}/v2.0",
+        issuer=issuer(),
     )
 
 
@@ -81,4 +84,6 @@ def current_user(token: str = Depends(bearer)) -> User:
         raise HTTPException(401, f"Invalid token: {e}") from e
     roles = claims.get("roles", [])
     dealer_id = None if "Thor.Admin" in roles else dealer_for(token)
-    return User(oid=claims["oid"], roles=roles, dealer_id=dealer_id, token=token)
+    # Entra puts the directory object id in oid; every other provider identifies the user by sub.
+    oid = claims.get("oid") or claims["sub"]
+    return User(oid=oid, roles=roles, dealer_id=dealer_id, token=token)

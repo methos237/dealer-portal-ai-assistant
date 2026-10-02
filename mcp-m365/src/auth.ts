@@ -1,23 +1,23 @@
 /**
- * Bearer auth for the HTTP transport. The assistant forwards the user's dealer-portal-api token;
- * we verify it against Entra (same tenant and audience as the api) and require an allowed app role,
+ * Bearer auth for the HTTP transport. The assistant forwards the user's portal api token; we verify
+ * it against the same OpenID Connect issuer and audience as the api and require an allowed app role,
  * so app-only Graph access is never reachable without a portal identity that may use it.
  */
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 
 export interface AuthConfig {
-  tenantId: string;
+  issuer: string;
   audience: string;
   allowedRoles: string[];
 }
 
 export function authFromEnv(env: NodeJS.ProcessEnv = process.env): AuthConfig {
-  const tenantId = env.AzureAd__TenantId;
-  const audience = env.AzureAd__ClientId;
-  if (!tenantId || !audience)
-    throw new Error("AzureAd__TenantId and AzureAd__ClientId are required");
+  const issuer = env.OIDC_ISSUER?.replace(/\/$/, "");
+  const audience = env.OIDC_AUDIENCE;
+  if (!issuer || !audience)
+    throw new Error("OIDC_ISSUER and OIDC_AUDIENCE are required");
   return {
-    tenantId,
+    issuer,
     audience,
     allowedRoles: (env.M365_ALLOWED_ROLES ?? "Thor.Admin")
       .split(",")
@@ -30,17 +30,22 @@ export type Verifier = (
 ) => Promise<JWTPayload>;
 
 export function makeVerifier(cfg: AuthConfig): Verifier {
-  const issuer = `https://login.microsoftonline.com/${cfg.tenantId}/v2.0`;
-  const jwks = createRemoteJWKSet(
-    new URL(
-      `https://login.microsoftonline.com/${cfg.tenantId}/discovery/v2.0/keys`,
-    ),
-  );
+  // Key set location comes from the issuer's discovery document, fetched on the first request.
+  let jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
+  const keys = async () => {
+    if (!jwks) {
+      const res = await fetch(`${cfg.issuer}/.well-known/openid-configuration`);
+      if (!res.ok) throw new Error(`OIDC discovery failed: ${res.status}`);
+      const { jwks_uri } = (await res.json()) as { jwks_uri: string };
+      jwks = createRemoteJWKSet(new URL(jwks_uri));
+    }
+    return jwks;
+  };
   return async (authorization) => {
     if (!authorization?.startsWith("Bearer "))
       throw new Error("Missing bearer token");
-    const { payload } = await jwtVerify(authorization.slice(7), jwks, {
-      issuer,
+    const { payload } = await jwtVerify(authorization.slice(7), await keys(), {
+      issuer: cfg.issuer,
       audience: cfg.audience,
     });
     const roles = (payload.roles as string[] | undefined) ?? [];

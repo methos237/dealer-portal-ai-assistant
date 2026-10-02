@@ -18,12 +18,12 @@ log() { echo "==> $*" >&2; }
 
 if [ "${1:-}" = "--github-secrets" ]; then
   log "pushing deploy variables and secrets to GitHub"
-  gh variable set WEB_CLIENT_ID --body "$AUTH_MICROSOFT_ENTRA_ID_ID"
-  gh variable set ENTRA_API_SCOPE --body "$ENTRA_API_SCOPE"
+  gh variable set WEB_CLIENT_ID --body "$AUTH_OIDC_ID"
+  gh variable set ENTRA_API_SCOPE --body "$OIDC_API_SCOPE"
   gh variable set M365_SITE --body "$M365_SITE"
   gh variable set BUDGET_EMAIL --body "$AZURE_BUDGET_EMAIL"
   gh secret set POSTGRES_PASSWORD --body "$AZURE_POSTGRES_PASSWORD"
-  gh secret set WEB_CLIENT_SECRET --body "$AUTH_MICROSOFT_ENTRA_ID_SECRET"
+  gh secret set WEB_CLIENT_SECRET --body "$AUTH_OIDC_SECRET"
   gh secret set AUTH_SECRET --body "$AUTH_SECRET"
   gh secret set ANTHROPIC_API_KEY --body "$ANTHROPIC_API_KEY"
   gh secret set M365_CLIENT_SECRET --body "$M365_CLIENT_SECRET"
@@ -35,10 +35,10 @@ az group create -n "$RG" -l "$LOCATION" -o none
 log "bicep deployment (10 to 15 minutes on first run; Postgres is the slow part)"
 az deployment group create -g "$RG" -n dealer-portal --template-file infra/main.bicep \
   --parameters infra/dev.parameters.json \
-  --parameters imageTag="$TAG" webClientId="$AUTH_MICROSOFT_ENTRA_ID_ID" entraApiScope="$ENTRA_API_SCOPE" \
+  --parameters imageTag="$TAG" webClientId="$AUTH_OIDC_ID" entraApiScope="$OIDC_API_SCOPE" \
     m365Site="$M365_SITE" budgetEmail="$AZURE_BUDGET_EMAIL" \
     powerBiWorkspaceId="${PowerBi__WorkspaceId:-}" powerBiSemanticModelId="${PowerBi__SemanticModelId:-}" \
-    postgresAdminPassword="$AZURE_POSTGRES_PASSWORD" webClientSecret="$AUTH_MICROSOFT_ENTRA_ID_SECRET" \
+    postgresAdminPassword="$AZURE_POSTGRES_PASSWORD" webClientSecret="$AUTH_OIDC_SECRET" \
     authSecret="$AUTH_SECRET" anthropicApiKey="$ANTHROPIC_API_KEY" m365ClientSecret="$M365_CLIENT_SECRET" \
   --query properties.outputs -o json > /tmp/dealer-portal-outputs.json
 out() { python3 -c "import json;print(json.load(open('/tmp/dealer-portal-outputs.json'))['$1']['value'])"; }
@@ -91,6 +91,6 @@ cat <<OUT
 Portal:    $WEB_URL
 API:       $API_URL   (MCP at $API_URL/mcp)
 Assistant: $ASSISTANT_URL
-Add $WEB_URL/api/auth/callback/microsoft-entra-id to the dealer-portal-web redirect URIs (scripts/entra-setup.sh does this when WEB_REDIRECT_URIS includes it).
+Add $WEB_URL/api/auth/callback/oidc to the dealer-portal-web redirect URIs (scripts/entra-setup.sh does this when WEB_REDIRECT_URIS includes it).
 Tear down: scripts/azure-down.sh
 OUT
