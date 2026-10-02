@@ -2,6 +2,11 @@ param location string
 param imageRegistry string
 param imageTag string
 param appInsightsConnectionString string
+@description('OpenTelemetry Collector image; the azuremonitor exporter lives in the contrib distribution.')
+param otelCollectorImage string = 'otel/opentelemetry-collector-contrib:0.161.0'
+@secure()
+@description('Bearer token the three apps present to the collector, which is a public hostname.')
+param otelToken string
 param entraTenantId string
 param apiClientId string
 param webClientId string
@@ -16,9 +21,9 @@ param powerBiSemanticModelId string = ''
 @description('Key Vault name; secrets referenced by name so App Service resolves them with the app identity.')
 param keyVaultName string
 
-var names = { web: 'app-dealer-portal-web', api: 'app-dealer-portal-api', assistant: 'app-dealer-portal-assistant' }
+var names = { web: 'app-dealer-portal-web', api: 'app-dealer-portal-api', assistant: 'app-dealer-portal-assistant', otel: 'app-dealer-portal-otel' }
 var kv = 'Microsoft.KeyVault(VaultName=${keyVaultName};SecretName='
-var hosts = { web: '${names.web}.azurewebsites.net', api: '${names.api}.azurewebsites.net', assistant: '${names.assistant}.azurewebsites.net' }
+var hosts = { web: '${names.web}.azurewebsites.net', api: '${names.api}.azurewebsites.net', assistant: '${names.assistant}.azurewebsites.net', otel: '${names.otel}.azurewebsites.net' }
 
 resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: 'plan-dealer-portal'
@@ -30,12 +35,40 @@ resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   properties: { reserved: true }
 }
 
+// The apps speak OTLP only (the same code path as Jaeger in compose); one collector forwards to App Insights.
 var common = {
-  APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
+  OTEL_EXPORTER_OTLP_ENDPOINT: 'https://${hosts.otel}'
+  OTEL_EXPORTER_OTLP_HEADERS: 'Authorization=Bearer ${otelToken}'
   WEBSITES_CONTAINER_START_TIME_LIMIT: '600' // api migrates and seeds before it listens; B1 cold starts are slow
   WEBSITES_ENABLE_APP_SERVICE_STORAGE: 'false'
   DOCKER_ENABLE_CI: 'true'
 }
+
+// Collector config arrives through an app setting (--config=env:OTEL_CONFIG); App Service containers mount no files.
+var otelConfig = '''
+extensions:
+  bearertokenauth:
+    token: ${env:OTEL_TOKEN}
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        auth:
+          authenticator: bearertokenauth
+processors:
+  batch: {}
+exporters:
+  azuremonitor:
+    connection_string: ${env:APPLICATIONINSIGHTS_CONNECTION_STRING}
+service:
+  extensions: [bearertokenauth]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [azuremonitor]
+'''
 
 var settings = {
   web: union(common, {
@@ -95,6 +128,31 @@ resource site 'Microsoft.Web/sites@2024-04-01' = [for app in ['web', 'api', 'ass
     }
   }
 }]
+
+resource otel 'Microsoft.Web/sites@2024-04-01' = {
+  name: names.otel
+  location: location
+  kind: 'app,linux,container'
+  properties: {
+    serverFarmId: plan.id
+    httpsOnly: true
+    siteConfig: {
+      linuxFxVersion: 'DOCKER|${otelCollectorImage}'
+      appCommandLine: '--config=env:OTEL_CONFIG'
+      alwaysOn: true
+      http20Enabled: true
+      minTlsVersion: '1.2'
+      ftpsState: 'Disabled'
+      appSettings: [
+        { name: 'WEBSITES_PORT', value: '4318' }
+        { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
+        { name: 'OTEL_CONFIG', value: otelConfig }
+        { name: 'OTEL_TOKEN', value: otelToken }
+        { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
+      ]
+    }
+  }
+}
 
 output principalIds string[] = [for i in range(0, 3): site[i].identity.principalId]
 // All three share the plan, so the lists are identical; union() in main.bicep dedupes.

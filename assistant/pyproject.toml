@@ -6,7 +6,6 @@ license = "AGPL-3.0-or-later"
 dependencies = [
     "anthropic[mcp]>=1.8.0",
     "azure-identity>=1.25.3",
-    "azure-monitor-opentelemetry-exporter>=1.0.0b57",
     "fastapi[standard]>=0.141.1",
     "fastembed>=0.8.1",
     "mcp>=2.2.0",

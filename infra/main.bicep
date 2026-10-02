@@ -84,6 +84,8 @@ module apps 'apps.bicep' = {
     imageRegistry: imageRegistry
     imageTag: imageTag
     appInsightsConnectionString: monitoring.outputs.connectionString
+    // Only the collector may ingest spans; derived from a secret the deployment already has, so no new input.
+    otelToken: uniqueString(resourceGroup().id, authSecret)
     entraTenantId: entraTenantId
     apiClientId: apiClientId
     webClientId: webClientId
