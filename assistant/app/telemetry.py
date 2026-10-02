@@ -1,7 +1,7 @@
 """OpenTelemetry for the assistant.
 
-Exporter by environment: OTEL_EXPORTER_OTLP_ENDPOINT -> OTLP http/protobuf (Jaeger in compose);
-APPLICATIONINSIGHTS_CONNECTION_STRING -> Azure Monitor; neither -> tracing stays a no-op.
+OTEL_EXPORTER_OTLP_ENDPOINT -> OTLP http/protobuf (Jaeger in compose, the collector on Azure);
+unset -> tracing stays a no-op.
 W3C trace context comes in from the web proxy and goes out to the api's /mcp on every httpx request.
 """
 
@@ -19,22 +19,13 @@ tracer = trace.get_tracer("assistant")
 
 
 def configure(app) -> TracerProvider | None:
-    """Tracer provider with the exporters the environment asks for; instruments FastAPI, psycopg."""
-    otlp = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-    app_insights = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
-    if not otlp and not app_insights:
+    """OTLP-exporting tracer provider when an endpoint is set; instruments FastAPI and psycopg."""
+    if not os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
         return None
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
     provider = TracerProvider(resource=Resource.create({"service.name": "assistant"}))
-    if otlp:
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
-        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-    if app_insights:
-        from azure.monitor.opentelemetry.exporter import AzureMonitorTraceExporter
-
-        provider.add_span_processor(
-            BatchSpanProcessor(AzureMonitorTraceExporter(connection_string=app_insights))
-        )
+    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     trace.set_tracer_provider(provider)
     FastAPIInstrumentor.instrument_app(app, excluded_urls="health")
     PsycopgInstrumentor().instrument(skip_dep_check=True)

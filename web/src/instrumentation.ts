@@ -1,20 +1,17 @@
 /**
  * OpenTelemetry for the Next.js server: request spans, server-side fetch spans, and W3C trace context
  * forwarded to the api and the assistant so one trace covers browser request, retrieval, Claude call,
- * /mcp tool call and Postgres query. Export target: OTEL_EXPORTER_OTLP_ENDPOINT (Jaeger in compose),
- * else APPLICATIONINSIGHTS_CONNECTION_STRING (Azure), else nothing.
+ * /mcp tool call and Postgres query. Spans go to OTEL_EXPORTER_OTLP_ENDPOINT (Jaeger in compose, the
+ * collector on Azure); unset means no exporter.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const env = process.env;
-  if (
-    !env.OTEL_EXPORTER_OTLP_ENDPOINT &&
-    !env.APPLICATIONINSIGHTS_CONNECTION_STRING
-  )
-    return;
+  if (!env.OTEL_EXPORTER_OTLP_ENDPOINT) return;
   const { registerOTel } = await import("@vercel/otel");
-  const common = {
+  registerOTel({
     serviceName: "web",
+    traceExporter: "auto",
     instrumentationConfig: {
       fetch: {
         ignoreUrls: [/\/health$/],
@@ -24,24 +21,5 @@ export async function register() {
         ],
       },
     },
-  };
-  if (env.OTEL_EXPORTER_OTLP_ENDPOINT) {
-    registerOTel({ ...common, traceExporter: "auto" });
-    return;
-  }
-  const [{ AzureMonitorTraceExporter }, { BatchSpanProcessor }] =
-    await Promise.all([
-      import("@azure/monitor-opentelemetry-exporter"),
-      import("@opentelemetry/sdk-trace-base"),
-    ]);
-  registerOTel({
-    ...common,
-    spanProcessors: [
-      new BatchSpanProcessor(
-        new AzureMonitorTraceExporter({
-          connectionString: env.APPLICATIONINSIGHTS_CONNECTION_STRING,
-        }),
-      ),
-    ],
   });
 }

@@ -1,4 +1,4 @@
-"""Spans the assistant emits: one per Claude call with gen_ai usage; no-op without exporters."""
+"""Spans the assistant emits: one per Claude call with gen_ai usage; no-op without an endpoint."""
 
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
@@ -23,9 +23,8 @@ def provider():
     yield p
 
 
-def test_configure_is_a_no_op_without_exporters(monkeypatch) -> None:
+def test_configure_is_a_no_op_without_an_endpoint(monkeypatch) -> None:
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
-    monkeypatch.delenv("APPLICATIONINSIGHTS_CONNECTION_STRING", raising=False)
     assert telemetry.configure(object()) is None
 
 

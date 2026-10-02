@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.AspNetCore;
-using Azure.Monitor.OpenTelemetry.Exporter;
 using Npgsql;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Resources;
@@ -56,11 +55,9 @@ builder.Services.AddScoped<IReportSource>(sp => sp.GetRequiredService<IOptions<P
     ? sp.GetRequiredService<PowerBiClient>()
     : sp.GetRequiredService<SqlReportSource>());
 
-// Tracing is on only when a destination exists: OTLP (Jaeger in compose) and/or Application Insights (Azure).
-// Neither variable set (tests, plain `dotnet run`) means no exporter and no overhead.
-var otlp = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
-var appInsights = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
-if (otlp is not null || appInsights is not null)
+// Tracing is on only when OTEL_EXPORTER_OTLP_ENDPOINT names a destination (Jaeger in compose, the collector on
+// Azure). Unset (tests, plain `dotnet run`) means no exporter and no overhead.
+if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
 {
     builder.Services.AddOpenTelemetry()
         .ConfigureResource(r => r.AddService("api"))
@@ -69,16 +66,8 @@ if (otlp is not null || appInsights is not null)
             t.AddAspNetCoreInstrumentation(o => o.Filter = ctx => ctx.Request.Path != "/health")
              .AddHttpClientInstrumentation()
              .AddNpgsql()
-             .AddSource("Experimental.ModelContextProtocol");
-            if (otlp is not null)
-            {
-                t.AddOtlpExporter(o => o.Protocol = OtlpExportProtocol.HttpProtobuf);
-            }
-
-            if (appInsights is not null)
-            {
-                t.AddAzureMonitorTraceExporter(o => o.ConnectionString = appInsights);
-            }
+             .AddSource("Experimental.ModelContextProtocol")
+             .AddOtlpExporter(o => o.Protocol = OtlpExportProtocol.HttpProtobuf);
         });
 }
 
