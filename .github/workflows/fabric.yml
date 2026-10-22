@@ -1,10 +1,8 @@
 name: fabric
 
-# The F2 capacity costs about 0.36 USD per hour while running and has no auto-pause. Nightly suspend
-# as a backstop; resume by hand before a demo (then run the copy pipeline once, scripts/fabric-up.sh).
+# The F2 capacity costs about 0.36 USD per hour while running and has no auto-pause. Dispatch suspend
+# after a demo and resume before one (then run the copy pipeline once, scripts/fabric-up.sh).
 on:
-  schedule:
-    - cron: "0 4 * * *"
   workflow_dispatch:
     inputs:
       action:
