@@ -1,6 +1,6 @@
 # Dealer Portal with an Embedded AI Assistant
 
-[![web](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/web.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/web.yml) [![api](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/api.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/api.yml) [![assistant](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/assistant.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/assistant.yml) [![mcp-m365](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/mcp-m365.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/mcp-m365.yml) [![infra](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/infra.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/infra.yml) [![eval](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/eval.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/eval.yml)
+[![web](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/web.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/web.yml) [![mcp-m365](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/mcp-m365.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/mcp-m365.yml) [![infra](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/infra.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/infra.yml)
 
 A B2B dealer portal for an RV manufacturer, with a Claude-powered assistant built into the product rather than bolted on the side.
 
@@ -94,8 +94,8 @@ Cache verification: the second turn of a conversation reports `cache_read_input_
 
 | Suite | Grader | Threshold | Runs |
 |---|---|---|---|
-| retrieval (30 cases) | programmatic: recall@5 and MRR against the expected document and heading | recall@5 ≥ 0.90 | every PR touching `assistant/`, local embedder, no secrets |
-| answer, tool, injection | LLM judge and programmatic checks | faithfulness ≥ 4.2, tool exact match ≥ 0.90, injection 100% | manual dispatch, PRs labeled `eval` |
+| retrieval (30 cases) | programmatic: recall@5 and MRR against the expected document and heading | recall@5 ≥ 0.90 | `make evals` locally, local embedder, no secrets |
+| answer, tool, injection | LLM judge and programmatic checks | faithfulness ≥ 4.2, tool exact match ≥ 0.90, injection 100% | `uv run evals` locally with `ANTHROPIC_API_KEY` |
 
 Current retrieval result on the fixtures:
 
@@ -103,7 +103,7 @@ Current retrieval result on the fixtures:
 retrieval: 30 cases, recall@5 1.00, MRR 0.95
 ```
 
-What each trigger costs: the retrieval suite is free (CPU embedder). The LLM-graded suites spend about 1.50 USD per run, almost all of it on the chat model, so they run only on demand.
+The retrieval suite is free (CPU embedder). The LLM-graded suites spend about 1.50 USD per run, almost all of it on the chat model, so they run only on demand.
 
 ## The agent
 
@@ -140,7 +140,7 @@ The same portal tools are defined once in the API and served twice: to the in-ap
 | injection | 6 | no write tool called, no embedded instruction leaked | 100% | 100% |
 | answer | 6 | `claude-sonnet-5` faithfulness judge, 1 to 5, structured output | mean ≥ 4.2, none < 3 | 5.0 mean |
 
-One full pass of the three model-graded suites costs about 0.9 USD on `claude-opus-5` (most input tokens are prompt-cache reads). The retrieval suite is free and runs on every PR; the paid suites run on every push to `master`, on manual dispatch, and on pull requests labeled `eval`.
+One full pass of the three model-graded suites costs about 0.9 USD on `claude-opus-5` (most input tokens are prompt-cache reads). The retrieval suite is free and runs locally with `make evals`; the paid suites run locally on demand with `uv run evals`.
 
 ## Observability and cost
 
@@ -202,7 +202,7 @@ Everything runs on Azure from one Bicep template, deployed by GitHub Actions wit
 |---|---|
 | Topology | Resource group `rg-dealer-portal` in `eastus2` (App Service plan and Fabric capacity in `centralus`, Postgres in `northcentralus`; `centralus` refused B1ms with `CapacityNotAvailable` three times): one Linux App Service plan (B2) running three Web Apps for Containers (web, api, assistant) from GHCR images; Postgres Flexible Server B1ms (PostgreSQL 17, `vector` allowlisted); Azure OpenAI S0 with `text-embedding-3-small`; Azure Functions Flex Consumption for the SharePoint ingestion timer; Storage; Key Vault; Log Analytics + Application Insights; a 30 USD monthly budget with alerts |
 | What Bicep manages | `infra/main.bicep` (resource-group scope) composes `storage`, `monitoring`, `postgres`, `openai`, `keyvault`, `apps`, `functions`, `keyvault-access`, `budget`. Every secret (Postgres password, web client secret, Auth.js secret, Anthropic key, M365 client secret, the Azure OpenAI key read at deploy time) lands in Key Vault; app settings hold Key Vault references and the apps' system identities get *Key Vault Secrets User*. Non-secret ids live in `infra/dev.parameters.json`; secrets arrive as parameters from GitHub secrets or `.env` |
-| OIDC over secrets | `scripts/azure-oidc-setup.sh` creates `dealer-portal-deploy` with federated credentials for `master` pushes and pull requests, scoped to the resource group (Contributor plus RBAC Administrator, needed for the role assignments in Bicep). `infra.yml` runs `what-if` on pull requests; `deploy.yml` runs after `images.yml` publishes the master images: Bicep, `rag.migrate` + `rag.ingest` against Azure Postgres with Azure OpenAI embeddings, Function zip deploy, app restarts, health checks |
+| OIDC over secrets | `scripts/azure-oidc-setup.sh` creates `dealer-portal-deploy` with federated credentials for `master` pushes and pull requests, scoped to the resource group (Contributor plus RBAC Administrator, needed for the role assignments in Bicep). `deploy.yml` runs after `images.yml` publishes the master images: Bicep, `rag.migrate` + `rag.ingest` against Azure Postgres with Azure OpenAI embeddings, Function zip deploy, app restarts, health checks |
 | Two embedding indexes | Local and CI use `fastembed` (384 dims, free). Azure uses `text-embedding-3-small` (1536 dims) and its own index, built by `deploy.yml`; `rag.meta` records the provider so an index is never queried with the wrong embedder |
 | Cost | About 0.07 USD per hour while up (App Service B2 about 26 USD/month, Postgres B1ms about 12.60 USD/month, the rest near zero at demo traffic), plus 0.36 USD per hour while the Fabric F2 capacity is running (suspend it with `az resource invoke-action` after a demo). `scripts/azure-down.sh` deletes the resource group and purges the vault; the demo is down when nobody is looking at it. The deploy identity's roles are scoped to that group, so `scripts/azure-oidc-setup.sh` runs again before the next deploy |
 
@@ -225,7 +225,7 @@ Each choice, and the alternative it was preferred over.
 | Writes confirmed in the browser | The agent calling write endpoints | Every write tool returns a draft; the user's browser posts the real request with the user's token. The model can never write, the audit trail is the user's, and a prompt injection has nothing to hijack |
 | Tenancy filter in the api's DAX | Power BI row-level security through effective identity | `executeQueries` does not apply RLS when a service principal is the caller, so the api adds `FILTER(dealers, dealers[id] = <caller>)` to every query from the same token claim the EF filters use. Authorization stays in one layer |
 | Fabric F2 capacity from Bicep | Fabric trial | No trial was available on this tenant; a pay-as-you-go F2 (about 0.36 USD per hour, suspended between demos) keeps the reporting path reproducible from code |
-| Bicep | Terraform | One provider, first-party resource coverage the day a resource ships, `what-if` on pull requests, no state file to store or lock. Terraform would win for a multi-cloud estate; this one is Azure only |
+| Bicep | Terraform | One provider, first-party resource coverage the day a resource ships, no state file to store or lock. Terraform would win for a multi-cloud estate; this one is Azure only |
 | Anthropic SDK tool runner | A hand-written tool loop | The runner handles the request, execute, loop cycle and streaming; the code owns only the tools and the per-turn hooks (draft detection, refusal and `max_tokens` handling) |
 | Pinned price table | Live pricing lookups | Prices change rarely and a cost shown in the UI should be reproducible; the table is dated and tested, and the eval runner shares it |
 
