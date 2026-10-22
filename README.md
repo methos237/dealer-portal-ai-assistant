@@ -1,6 +1,6 @@
 # Dealer Portal with an Embedded AI Assistant
 
-[![web](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/web.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/web.yml) [![mcp-m365](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/mcp-m365.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/mcp-m365.yml) [![infra](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/infra.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/infra.yml) [![eval](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/eval.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/eval.yml)
+[![web](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/web.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/web.yml) [![mcp-m365](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/mcp-m365.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/mcp-m365.yml) [![infra](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/infra.yml/badge.svg)](https://github.com/methos237/dealer-portal-ai-assistant/actions/workflows/infra.yml)
 
 A B2B dealer portal for an RV manufacturer, with a Claude-powered assistant built into the product rather than bolted on the side.
 
@@ -95,7 +95,7 @@ Cache verification: the second turn of a conversation reports `cache_read_input_
 | Suite | Grader | Threshold | Runs |
 |---|---|---|---|
 | retrieval (30 cases) | programmatic: recall@5 and MRR against the expected document and heading | recall@5 ≥ 0.90 | `make evals` locally, local embedder, no secrets |
-| answer, tool, injection | LLM judge and programmatic checks | faithfulness ≥ 4.2, tool exact match ≥ 0.90, injection 100% | manual dispatch, PRs labeled `eval` |
+| answer, tool, injection | LLM judge and programmatic checks | faithfulness ≥ 4.2, tool exact match ≥ 0.90, injection 100% | `uv run evals` locally with `ANTHROPIC_API_KEY` |
 
 Current retrieval result on the fixtures:
 
@@ -103,7 +103,7 @@ Current retrieval result on the fixtures:
 retrieval: 30 cases, recall@5 1.00, MRR 0.95
 ```
 
-What each trigger costs: the retrieval suite is free (CPU embedder). The LLM-graded suites spend about 1.50 USD per run, almost all of it on the chat model, so they run only on demand.
+The retrieval suite is free (CPU embedder). The LLM-graded suites spend about 1.50 USD per run, almost all of it on the chat model, so they run only on demand.
 
 ## The agent
 
@@ -140,7 +140,7 @@ The same portal tools are defined once in the API and served twice: to the in-ap
 | injection | 6 | no write tool called, no embedded instruction leaked | 100% | 100% |
 | answer | 6 | `claude-sonnet-5` faithfulness judge, 1 to 5, structured output | mean ≥ 4.2, none < 3 | 5.0 mean |
 
-One full pass of the three model-graded suites costs about 0.9 USD on `claude-opus-5` (most input tokens are prompt-cache reads). The retrieval suite is free and runs locally with `make evals`; the paid suites run on every push to `master`, on manual dispatch, and on pull requests labeled `eval`.
+One full pass of the three model-graded suites costs about 0.9 USD on `claude-opus-5` (most input tokens are prompt-cache reads). The retrieval suite is free and runs locally with `make evals`; the paid suites run locally on demand with `uv run evals`.
 
 ## Observability and cost
 
